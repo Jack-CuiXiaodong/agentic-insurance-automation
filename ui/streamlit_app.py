@@ -217,6 +217,7 @@ h3 {
   color: var(--ink-3); margin-bottom: 6px;
 }
 .act-context p { margin: 0; font-size: 14px; color: var(--ink-2); line-height: 1.9; }
+.act-context p + p { margin-top: 10px; }
 
 table.acttbl {
   width: 100%; border-collapse: collapse; margin-top: 14px;
@@ -423,7 +424,8 @@ def _render_acts(acts: List[Act]) -> None:
             f"<p class='act-narration'>{a.narration}</p>"
             f"{shot}"
             f"<div class='act-context'><span class='lbl'>这一幕背后</span>"
-            f"<p>{a.context}</p></div>"
+            + "".join(f"<p>{para}</p>" for para in a.context.split("\n\n"))
+            + "</div>"
             f"{tbl}"
             "</div>",
             unsafe_allow_html=True,
@@ -583,15 +585,15 @@ def main() -> None:
         b1, b2 = st.columns([1, 1])
         submitted = b1.form_submit_button("运行 Agent", type="primary",
                                           use_container_width=True)
-        story = b2.form_submit_button("▶ 四幕演示（面试讲解用）",
+        story = b2.form_submit_button("▶ 三幕演示（面试讲解用）",
                                       use_container_width=True,
-                                      help="不跑完整 Agent，而是把「RPA 好用 → 页面改版 → "
-                                           "RPA 撞墙 → Agent 接手」这条时间线一幕一幕演一遍，"
-                                           "每幕都有真实截图和解说。")
+                                      help="不跑完整 Agent，而是把「RPA 好用 → 网页更新导致"
+                                           "取元素失败 → Agent 接手救场」这条时间线一幕一幕"
+                                           "演一遍，每幕都有真实截图和解说。")
 
     if story:
         claim = get_provider().get_claim(claim_id) or {}
-        with st.spinner("正在按四幕重放…（有头模式下请看弹出的浏览器窗口）"):
+        with st.spinner("正在按三幕重放…（有头模式下请看弹出的浏览器窗口）"):
             with ThreadPoolExecutor(max_workers=1) as pool:
                 manager.ensure_running()
                 st.session_state["acts"] = pool.submit(
@@ -616,7 +618,7 @@ def main() -> None:
 
     if "acts" in st.session_state:
         st.markdown(
-            "### 一次界面改版，四幕之内发生的全部事情\n"
+            "### 一次网页改版，三幕之内发生的全部事情\n"
             "下面每一幕的截图都来自刚刚这次真实运行，不是示意图。"
         )
         _render_acts(st.session_state["acts"])
