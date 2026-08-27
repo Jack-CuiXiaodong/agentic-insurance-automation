@@ -33,11 +33,15 @@ def page_session(url: str, headless: bool | None = None) -> Iterator["object"]:
 
     headless = settings.playwright_headless if headless is None else headless
     with sync_playwright() as p:
+        launch_kwargs = {"headless": headless}
+        if settings.playwright_chromium_path:
+            launch_kwargs["executable_path"] = settings.playwright_chromium_path
         try:
-            browser = p.chromium.launch(headless=headless)
+            browser = p.chromium.launch(**launch_kwargs)
         except Exception as exc:  # pragma: no cover
             raise BrowserUnavailable(
-                "Could not launch Chromium. Run: playwright install chromium"
+                "Could not launch Chromium. Run: playwright install chromium "
+                "(or set PLAYWRIGHT_CHROMIUM_PATH to an existing browser binary)"
             ) from exc
         try:
             page = browser.new_page()
