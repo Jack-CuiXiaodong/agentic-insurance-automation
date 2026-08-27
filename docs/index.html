@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RPA进化论</title>
+<meta name="description" content="传统 RPA 网页元素一变就瘫痪，这套 Agent 系统靠语义自己找回按钮——用一次真实运行的原始日志说话。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@400;500;600;700&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: #E7E8E2;
+    --surface: #F5F5F0;
+    --surface-2: #ECECE5;
+    --border: #CDD0C6;
+    --text: #1C201B;
+    --text-dim: #5B6058;
+    --accent: #A9701F;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #EDE0C8;
+    --agent: #1C8F80;
+    --agent-soft: #D9EEEA;
+    --good: #2F7A54;
+    --good-soft: #DFEEE3;
+    --bad: #B14432;
+    --bad-soft: #F4DCD6;
+    --shadow: 0 1px 2px rgba(28,32,27,.06), 0 8px 24px -12px rgba(28,32,27,.18);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10141B;
+      --surface: #171C25;
+      --surface-2: #1E2530;
+      --border: #2B3340;
+      --text: #EDEEEA;
+      --text-dim: #9BA3AF;
+      --accent: #D6A24A;
+      --accent-ink: #1B1204;
+      --accent-soft: #3A3221;
+      --agent: #57C6B6;
+      --agent-soft: #1B302D;
+      --good: #6BC299;
+      --good-soft: #17301F;
+      --bad: #E08A76;
+      --bad-soft: #33201B;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 32px -14px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10141B;
+    --surface: #171C25;
+    --surface-2: #1E2530;
+    --border: #2B3340;
+    --text: #EDEEEA;
+    --text-dim: #9BA3AF;
+    --accent: #D6A24A;
+    --accent-ink: #1B1204;
+    --accent-soft: #3A3221;
+    --agent: #57C6B6;
+    --agent-soft: #1B302D;
+    --good: #6BC299;
+    --good-soft: #17301F;
+    --bad: #E08A76;
+    --bad-soft: #33201B;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 32px -14px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Public Sans", "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  ::selection { background: var(--accent-soft); color: var(--text); }
+
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--agent); outline-offset: 3px; border-radius: 2px; }
+
+  h1, h2, h3 {
+    font-family: "Zilla Slab", Georgia, "Songti SC", serif;
+    font-weight: 700;
+    line-height: 1.12;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding-inline: clamp(20px, 5vw, 56px); }
+  section { padding-block: clamp(56px, 9vw, 108px); }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: .5em;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .78rem;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 1.1em;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 7px; height: 7px;
+    background: var(--accent);
+    display: inline-block;
+    border-radius: 1px;
+    transform: rotate(45deg);
+  }
+
+  /* ---------------- top tab strip ---------------- */
+  .filetab {
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .filetab .wrap {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-block: 14px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .8rem;
+    color: var(--text-dim);
+  }
+  .filetab strong { color: var(--text); font-weight: 600; }
+  .filetab .status {
+    display: inline-flex; align-items: center; gap: .5em;
+    color: var(--good);
+  }
+  .filetab .status i {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--good);
+    box-shadow: 0 0 0 3px var(--good-soft);
+  }
+
+  /* ---------------- hero ---------------- */
+  .hero { padding-block: clamp(64px, 11vw, 132px) clamp(40px, 7vw, 80px); }
+  .hero h1 {
+    font-size: clamp(2rem, 5.6vw, 3.4rem);
+    max-width: 15ch;
+  }
+  .hero h1 .dim { display: block; color: var(--text-dim); font-weight: 500; font-size: .62em; margin-bottom: .3em; }
+  .hero h1 .strike { display: block; }
+  .hero h1 .twist {
+    display: block;
+    color: var(--agent);
+    margin-top: .35em;
+  }
+  .hero p.lede {
+    max-width: 56ch;
+    color: var(--text-dim);
+    font-size: 1.05rem;
+    margin-top: 1.6em;
+  }
+  .hero .cta-row { margin-top: 2.2em; display: flex; align-items: center; gap: 1.4em; flex-wrap: wrap; }
+
+  .btn {
+    font-family: "Public Sans", sans-serif;
+    font-weight: 600;
+    font-size: .95rem;
+    border: none;
+    border-radius: 4px;
+    padding: .95em 1.6em;
+    cursor: pointer;
+    background: var(--agent);
+    color: #08201C;
+    box-shadow: var(--shadow);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn[disabled] { opacity: .55; cursor: default; transform: none; }
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    box-shadow: none;
+  }
+
+  .kicker-link {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .82rem;
+    color: var(--text-dim);
+    text-decoration: none;
+    border-bottom: 1px dashed var(--border);
+  }
+  .kicker-link:hover { color: var(--text); border-color: var(--text-dim); }
+
+  /* ---------------- incident strip ---------------- */
+  .incident {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .incident .grid {
+    display: grid;
+    grid-template-columns: minmax(0,1.1fr) minmax(0,1.4fr);
+    gap: clamp(24px, 5vw, 64px);
+    align-items: start;
+  }
+  .incident h2 { font-size: clamp(1.5rem, 3vw, 2rem); }
+  .incident p { color: var(--text-dim); margin-top: 1em; max-width: 46ch; }
+  .ticket {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1.4em 1.6em;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .84rem;
+    color: var(--text-dim);
+    position: relative;
+  }
+  .ticket .tag {
+    display: inline-block;
+    font-size: .72rem;
+    letter-spacing: .06em;
+    color: var(--bad);
+    background: var(--bad-soft);
+    padding: .25em .6em;
+    border-radius: 2px;
+    margin-bottom: 1em;
+  }
+  .ticket code { color: var(--text); }
+
+  /* ---------------- demo ---------------- */
+  .demo h2 { font-size: clamp(1.7rem, 3.4vw, 2.4rem); }
+  .demo > .wrap > p.lede { color: var(--text-dim); max-width: 60ch; margin-top: .9em; }
+
+  .ticker {
+    margin-top: 2.2em;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .82rem;
+    color: var(--text-dim);
+    border: 1px dashed var(--border);
+    border-radius: 3px;
+    padding: .75em 1em;
+    display: inline-flex;
+    gap: .6em;
+    align-items: center;
+  }
+  .ticker::before { content: "▍"; color: var(--agent); animation: blink 1.1s step-end infinite; }
+
+  .stage {
+    margin-top: 1.6em;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: clamp(16px, 3vw, 28px);
+  }
+  @media (max-width: 720px) { .stage { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+  }
+  .panel-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .9em 1.1em;
+    border-bottom: 1px solid var(--border);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .78rem;
+  }
+  .panel--rpa .panel-head { color: var(--text-dim); }
+  .panel--agent .panel-head { color: var(--agent); }
+  .panel-head .pill {
+    font-size: .7rem; letter-spacing: .05em;
+    padding: .2em .55em; border-radius: 2px;
+    border: 1px solid currentColor;
+  }
+
+  /* fake browser mock, deliberately theme-fixed (it's a screenshot-like element) */
+  .mockbrowser { background: #DADCD5; }
+  .mockchrome {
+    display: flex; align-items: center; gap: .5em;
+    padding: .55em .8em;
+    background: #C7CABF;
+    border-bottom: 1px solid #B3B6AA;
+  }
+  .mockchrome i { width: 8px; height: 8px; border-radius: 50%; background: #9A9D91; display: inline-block; }
+  .mockchrome span {
+    margin-left: .6em;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .7rem;
+    color: #565A4C;
+    background: #EDEEE7;
+    border-radius: 2px;
+    padding: .25em .7em;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mockpage {
+    position: relative;
+    min-height: 170px;
+    padding: 1.6em 1.4em;
+    color: #3A3C33;
+  }
+  .mockpage .field {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .72rem;
+    color: #767A6B;
+    margin-bottom: .5em;
+  }
+  .mockpage .field b { color: #3A3C33; }
+  .mockbtn {
+    margin-top: 1.2em;
+    display: inline-block;
+    font-family: "Public Sans", sans-serif;
+    font-weight: 600;
+    font-size: .82rem;
+    padding: .7em 1.2em;
+    border-radius: 3px;
+    background: #4A6FA5;
+    color: #fff;
+    position: relative;
+    transition: opacity .5s ease, transform .5s ease;
+  }
+  .mockbtn .selector {
+    display: block;
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 400;
+    font-size: .68rem;
+    opacity: .75;
+    margin-top: .2em;
+  }
+  .mockbtn.is-old { position: absolute; }
+  .mockbtn.is-new { background: #3D8F6E; }
+
+  .stage[data-act="0"] .mockbtn.is-new,
+  .stage[data-act="1"] .mockbtn.is-new,
+  .stage[data-act="2"] .mockbtn.is-new,
+  .stage[data-act="3"] .mockbtn.is-new { opacity: 0; transform: translateY(-6px); pointer-events: none; }
+  .stage[data-act="0"] .mockbtn.is-old { opacity: 1; transform: none; }
+  .stage[data-act="1"] .mockbtn.is-old,
+  .stage[data-act="2"] .mockbtn.is-old,
+  .stage[data-act="3"] .mockbtn.is-old { opacity: 0; transform: translateY(6px); }
+  .stage[data-act="1"] .mockbtn.is-new,
+  .stage[data-act="2"] .mockbtn.is-new,
+  .stage[data-act="3"] .mockbtn.is-new { opacity: 1; transform: none; pointer-events: auto; transition-delay: .15s; }
+
+  .panel-status {
+    padding: 1.1em 1.4em 1.4em;
+    min-height: 6.4em;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .78rem;
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: .5em;
+    padding: .3em .65em;
+    border-radius: 2px;
+    margin-bottom: .5em;
+    opacity: 0;
+  }
+  .chip.bad { background: var(--bad-soft); color: var(--bad); }
+  .chip.good { background: var(--good-soft); color: var(--good); }
+  .chip.agent { background: var(--agent-soft); color: var(--agent); }
+
+  .agentlog { list-style: none; margin: 0; padding: 0; }
+  .agentlog li { opacity: 0; }
+  .stage[data-revealed="true"] .agentlog li {
+    animation: reveal .4s ease forwards;
+    animation-delay: calc(var(--i) * .38s);
+  }
+  .stage[data-act="0"] .chip, .stage[data-act="1"] .chip { opacity: 0; }
+  .stage[data-revealed="true"] .rpafail { animation: reveal .4s ease forwards; }
+
+  .panel--rpa .outcome, .panel--agent .outcome {
+    border-top: 1px solid var(--border);
+    padding: 1.1em 1.4em;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity .5s ease, transform .5s ease;
+  }
+  .stage[data-act="3"] .outcome { opacity: 1; transform: none; }
+  .outcome .big { font-family: "Zilla Slab", serif; font-weight: 700; font-size: 1.3rem; }
+  .outcome .cap { font-family: "IBM Plex Mono", monospace; font-size: .76rem; color: var(--text-dim); margin-top: .3em; }
+  .panel--rpa .outcome .big { color: var(--bad); }
+  .panel--agent .outcome .big { color: var(--good); }
+
+  .stage[data-act="2"] .mockbrowser,
+  .stage[data-act="3"] .mockbrowser { filter: saturate(.6); }
+  .stage[data-act="2"] .panel--rpa .mockbrowser,
+  .stage[data-act="3"] .panel--rpa .mockbrowser { filter: saturate(.15) brightness(.94); }
+
+  .ribbon {
+    position: absolute; top: 10px; right: -30px;
+    background: var(--bad); color: #fff;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .65rem; letter-spacing: .08em;
+    padding: .3em 2.4em;
+    transform: rotate(28deg);
+    opacity: 0;
+    box-shadow: 0 2px 6px rgba(0,0,0,.25);
+  }
+  .stage[data-act="2"] .ribbon, .stage[data-act="3"] .ribbon { opacity: 1; transition: opacity .3s ease .1s; }
+
+  .controls { margin-top: 1.8em; display: flex; align-items: center; gap: 1.4em; flex-wrap: wrap; }
+  .progress { display: flex; gap: .4em; }
+  .progress span { width: 22px; height: 3px; background: var(--border); border-radius: 2px; transition: background .3s ease; }
+  .progress span.on { background: var(--agent); }
+
+  /* ---------------- console proof ---------------- */
+  .proof { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .proof h2 { font-size: clamp(1.5rem, 3vw, 2rem); }
+  .proof p.lede { color: var(--text-dim); margin-top: .8em; max-width: 56ch; }
+  .console {
+    margin-top: 1.8em;
+    background: #0C0F14;
+    border: 1px solid #262B33;
+    border-radius: 6px;
+    overflow: hidden;
+    opacity: 0; transform: translateY(8px);
+    transition: opacity .6s ease, transform .6s ease;
+  }
+  .console.shown { opacity: 1; transform: none; }
+  .console-head {
+    display: flex; align-items: center; gap: .6em;
+    padding: .7em 1em;
+    border-bottom: 1px solid #262B33;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .74rem;
+    color: #7C8697;
+  }
+  .console-head i { width: 8px; height: 8px; border-radius: 50%; background: #3A4150; display: inline-block; }
+  .console pre {
+    margin: 0;
+    padding: 1.2em 1.3em 1.4em;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .78rem;
+    line-height: 1.75;
+    color: #C7CDD6;
+    overflow-x: auto;
+    font-variant-numeric: tabular-nums;
+  }
+  .console .ok { color: #6FD19A; }
+  .console .bad { color: #F2917B; }
+  .console .warn { color: #E8B65E; }
+  .console .dim { color: #5C6472; }
+
+  .stats { display: flex; gap: 2.4em; margin-top: 1.6em; flex-wrap: wrap; }
+  .stat b { font-family: "Zilla Slab", serif; font-size: 1.6rem; display: block; color: var(--agent); }
+  .stat span { font-size: .78rem; color: var(--text-dim); }
+  .filepaths {
+    margin-top: 1.4em;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .76rem;
+    color: var(--text-dim);
+  }
+  .filepaths code { color: var(--text); background: var(--surface-2); padding: .1em .4em; border-radius: 2px; }
+
+  /* ---------------- pillars ---------------- */
+  .pillars h2 { font-size: clamp(1.7rem, 3.4vw, 2.4rem); max-width: 18ch; }
+  .pillars > .wrap > p.lede { color: var(--text-dim); margin-top: .8em; max-width: 56ch; }
+  .pillar-grid {
+    margin-top: 2.4em;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .pillar {
+    background: var(--surface);
+    padding: 1.6em 1.5em;
+  }
+  .pillar svg { width: 26px; height: 26px; color: var(--accent); margin-bottom: .9em; }
+  .pillar h3 { font-family: "Public Sans", sans-serif; font-size: 1rem; font-weight: 700; }
+  .pillar p { color: var(--text-dim); font-size: .89rem; margin-top: .5em; }
+
+  /* ---------------- close ---------------- */
+  .close { text-align: left; }
+  .close h2 {
+    font-size: clamp(1.8rem, 4.4vw, 3rem);
+    max-width: 18ch;
+  }
+  .close .accent { color: var(--agent); }
+  .close p.lede { color: var(--text-dim); margin-top: 1em; max-width: 50ch; }
+  .close .cta-row { margin-top: 2em; display: flex; gap: 1.2em; align-items: center; flex-wrap: wrap; }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding-block: 1.6em;
+  }
+  footer .wrap {
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .6em;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .74rem;
+    color: var(--text-dim);
+  }
+
+  @keyframes reveal { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="filetab">
+  <div class="wrap">
+    <span><strong>CLM-003</strong> · 理赔案件档案 · Accidental Medical Expense</span>
+    <span class="status"><i></i> 系统正常运行</span>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap">
+    <h1>
+      <span class="dim">如果网页换了个按钮，</span>
+      <span class="strike">传统 RPA 当场瘫痪。</span>
+      <span class="twist">这套系统，自己把新按钮找了出来。</span>
+    </h1>
+    <p class="lede">往下翻到的不是效果图、不是宣传片分镜——是这套系统一次真实运行、原样拷出来的执行日志。你可以先看它演一遍，再去看那份没改过一个字的原始记录。</p>
+    <div class="cta-row">
+      <button class="btn" id="playBtn" type="button">▶ 播放这次真实场景</button>
+      <a class="kicker-link" href="#proof">先看原始日志 →</a>
+    </div>
+  </div>
+</header>
+
+<section class="incident">
+  <div class="wrap grid">
+    <div>
+      <h2>传统 RPA 是怎么死的</h2>
+      <p>经典 RPA 只认一件事：录制那天，鼠标点过的那个坐标、那个 HTML 选择器。它假定页面从今往后长得永远一样。哪天前端顺手改了个按钮文案、挪了下位置——它唯一的反应，也是最后的反应：报错，停在原地，等人来修脚本。</p>
+    </div>
+    <div class="ticket">
+      <span class="tag">真实错误 · rpa/mock_rpa.py 实际抛出</span>
+      <span style="color:var(--bad)">RPAExecutionError</span><br>
+      &nbsp;&nbsp;Element not found: <code>#submit-claim-btn</code><br>
+      &nbsp;&nbsp;<span class="dim" style="opacity:.85">(the legacy 'Submit Claim' control</span><br>
+      &nbsp;&nbsp;<span class="dim" style="opacity:.85">is missing on this screen)</span>
+    </div>
+  </div>
+</section>
+
+<section class="demo" id="demo">
+  <div class="wrap">
+    <span class="eyebrow">真实场景重放 · CLM-003</span>
+    <h2>同一次界面变更，两种命运</h2>
+    <p class="lede">两边跑的是同一段真实脚本、同一次真实的按钮变更——区别只有一件事：右边这套系统，在 RPA 背后多装了一层 Agent。</p>
+
+    <div class="ticker" id="ticker">等待开始…</div>
+
+    <div class="stage" id="stage" data-act="0">
+      <div class="panel panel--rpa" id="panelRpa">
+        <div class="panel-head"><span>传统 RPA</span><span class="pill">仅脚本，无兜底</span></div>
+        <div class="mockbrowser">
+          <div class="mockchrome"><i></i><i></i><i></i><span>legacy-claims.internal/?claim=CLM-003</span></div>
+          <div class="mockpage">
+            <div class="field">理赔编号 <b>CLM-003</b> · 金额 <b>EUR 2,500</b></div>
+            <span class="mockbtn is-old">提交理赔<span class="selector">#submit-claim-btn</span></span>
+            <span class="mockbtn is-new">确认并提交<span class="selector">#confirm-submit-btn</span></span>
+            <div class="ribbon">STUCK</div>
+          </div>
+        </div>
+        <div class="panel-status">
+          <div class="chip bad rpafail">✕ Element not found: #submit-claim-btn</div>
+        </div>
+        <div class="outcome">
+          <div class="big">停摆</div>
+          <div class="cap">等待人工排查、修改脚本 — 通常几小时到几天</div>
+        </div>
+      </div>
+
+      <div class="panel panel--agent" id="panelAgent">
+        <div class="panel-head"><span>这套系统（RPA + Agent）</span><span class="pill">agent/agent.py</span></div>
+        <div class="mockbrowser">
+          <div class="mockchrome"><i></i><i></i><i></i><span>legacy-claims.internal/?claim=CLM-003</span></div>
+          <div class="mockpage">
+            <div class="field">理赔编号 <b>CLM-003</b> · 金额 <b>EUR 2,500</b></div>
+            <span class="mockbtn is-old">提交理赔<span class="selector">#submit-claim-btn</span></span>
+            <span class="mockbtn is-new">确认并提交<span class="selector">#confirm-submit-btn</span></span>
+          </div>
+        </div>
+        <div class="panel-status">
+          <ul class="agentlog">
+            <li style="--i:0" class="chip bad">✕ 目标丢失：#submit-claim-btn</li>
+            <li style="--i:1" class="chip agent">↻ 启动浏览器自愈</li>
+            <li style="--i:2" class="chip agent">✓ 语义匹配："确认并提交"</li>
+            <li style="--i:3" class="chip good">✓ 自动化已恢复</li>
+          </ul>
+        </div>
+        <div class="outcome">
+          <div class="big">自动恢复</div>
+          <div class="cap">耗时约 1 秒，全程零人工介入</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn btn-ghost" id="replayBtn" type="button" disabled>↺ 重新播放</button>
+      <div class="progress"><span data-p="1"></span><span data-p="2"></span><span data-p="3"></span></div>
+    </div>
+  </div>
+</section>
+
+<section class="proof" id="proof">
+  <div class="wrap">
+    <span class="eyebrow">证据 · 原始日志</span>
+    <h2>上面不是效果图</h2>
+    <p class="lede">这是同一个场景一次真实运行、终端里原样拷出来的执行记录，一个字没改。</p>
+
+    <div class="console shown">
+      <div class="console-head"><i></i><i></i><i></i><span>python3 -m agent.agent · run_agent("Process claim CLM-003")</span></div>
+      <pre><span class="dim">05:54:46</span> · Agent started (LLM backend: deterministic)
+<span class="dim">05:54:46</span> · Retrieving claim CLM-003
+<span class="dim">05:54:46</span> <span class="ok">✓</span> Claim found: EUR 2,500 (FNOL)
+<span class="dim">05:54:46</span> · Retrieving policy POL-003
+<span class="dim">05:54:46</span> <span class="ok">✓</span> Policy ACTIVE -- Accidental Medical Expense (limit EUR 50,000)
+<span class="dim">05:54:46</span> · Retrieving claim history for POL-003
+<span class="dim">05:54:46</span> <span class="ok">✓</span> Claim history: 1 prior claim(s)
+<span class="dim">05:54:46</span> · Searching business rules (RAG): "claim amount 2500 auto processing limit..."
+<span class="dim">05:54:46</span> <span class="ok">✓</span> Retrieved 3 rule(s); top: claim_rules.md -&gt; Eligibility for automatic processing
+<span class="dim">05:54:46</span> · Risk score: 0/100 (LOW)
+<span class="dim">05:54:46</span> <span class="ok">✓</span> Decision: AUTO_PROCESS
+<span class="dim">05:54:46</span> · Executing RPA workflow 'submit_claim' via mock-rpa
+<span class="dim">05:54:50</span> <span class="bad">✕</span> RPA failed: Element not found: #submit-claim-btn (the legacy 'Submit Claim' control is missing on this screen)
+<span class="dim">05:54:50</span> <span class="warn">↻</span> Agent recovery started (Playwright)
+<span class="dim">05:54:51</span> <span class="ok">✓</span> Inspecting current page DOM
+<span class="dim">05:54:51</span> <span class="ok">✓</span> Semantic match found: "Confirm &amp; Submit Claim"
+<span class="dim">05:54:51</span> <span class="ok">✓</span> Selecting control via role=button + accessible name
+<span class="dim">05:54:51</span> <span class="ok">✓</span> Alternative action executed
+<span class="dim">05:54:51</span> <span class="ok">✓</span> Automation recovered via "Confirm &amp; Submit Claim"
+<span class="dim">05:54:51</span> · Agent finished: CLM-003: RPA failed on a changed UI; recovered via browser automation -&gt; SUCCESS.</pre>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><b>30 / 30</b><span>pytest 全绿，含护栏测试</span></div>
+      <div class="stat"><b>0</b><span>此次恢复中的人工介入次数</span></div>
+      <div class="stat"><b>~1s</b><span>从报错到恢复成功</span></div>
+    </div>
+    <div class="filepaths">完整实现：<code>agent/agent.py</code> · <code>browser/recovery.py</code> · <code>rpa/mock_rpa.py</code></div>
+  </div>
+</section>
+
+<section class="pillars">
+  <div class="wrap">
+    <span class="eyebrow">拆开看</span>
+    <h2>五件事撑起上面那 1 秒</h2>
+    <p class="lede">没有一个是噱头——少掉任何一件，CLM-003 这一单要么会被误批，要么就真的卡死在那个按钮上。</p>
+    <div class="pillar-grid">
+      <div class="pillar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v3.4M12 17.6V21M3 12h3.4M17.6 12H21M5.6 5.6l2.4 2.4M16 16l2.4 2.4M5.6 18.4L8 16M16 8l2.4-2.4"/></svg>
+        <h3>AI Agent 编排</h3>
+        <p>不是写死的固定流程，是每一步自己判断该调用哪个工具、要不要停下来。</p>
+      </div>
+      <div class="pillar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="3.5" width="12" height="17" rx="1.2"/><path d="M7.5 8h5M7.5 11.5h5M7.5 15h3"/><circle cx="17.5" cy="17.5" r="3"/><path d="M19.8 19.8L22 22"/></svg>
+        <h3>RAG 检索业务规则</h3>
+        <p>决策依据来自打得开、读得到的文档，不是模型记忆里模糊的经验。</p>
+      </div>
+      <div class="pillar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="4" width="17" height="16" rx="1.4"/><path d="M3.5 9h17M7.5 13h2M12 13h2M16.5 13h1M7.5 16.5h2M12 16.5h2M16.5 16.5h1"/></svg>
+        <h3>确定性风控引擎</h3>
+        <p>动钱的数字和结论，全部由代码计算，AI 连碰都碰不到。</p>
+      </div>
+      <div class="pillar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l7 3.2v5.4c0 4.4-3 7.9-7 9.4-4-1.5-7-5-7-9.4V6.2L12 3z"/><path d="M9.2 12.2l1.9 1.9 3.7-4"/></svg>
+        <h3>人工审批闸门</h3>
+        <p>高风险的单子，AI 想绕都绕不过去——闸门写在代码里，不是写在提示词里。</p>
+      </div>
+      <div class="pillar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14.5 3.5l6 6-9 9-6.5 1.5L6.5 13l8-9.5z"/><path d="M12.5 6.5l4.9 4.9"/></svg>
+        <h3>浏览器自愈</h3>
+        <p>选择器失效时靠语义重新找控件，不是靠死记硬背的坐标。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="close">
+  <div class="wrap">
+    <span class="eyebrow">写在最后</span>
+    <h2>别换掉 RPA，<span class="accent">给它装个大脑。</span></h2>
+    <p class="lede">这套系统不是把 RPA 扔掉重来——是在你已经跑了很多年的自动化背后，多装一层能读文档、会判断、出事能自己想办法的编排层。</p>
+    <div class="cta-row">
+      <a class="btn" href="https://github.com/Jack-CuiXiaodong/agentic-insurance-automation" target="_blank" rel="noopener">查看完整源码 →</a>
+      <a class="kicker-link" href="https://github.com/Jack-CuiXiaodong/agentic-insurance-automation/pull/1" target="_blank" rel="noopener">相关 Pull Request</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Agentic Insurance Automation Lab</span>
+    <span>合成数据 · 独立技术验证 · 非任何厂商官方产品</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var stage = document.getElementById('stage');
+  var ticker = document.getElementById('ticker');
+  var playBtn = document.getElementById('playBtn');
+  var replayBtn = document.getElementById('replayBtn');
+  var dots = document.querySelectorAll('.progress span');
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var acts = [
+    { text: '等待开始…', gap: 0 },
+    { text: '10:42 · 前端悄悄上线了新版按钮', gap: reduced ? 60 : 1000 },
+    { text: '两边同时尝试点击「提交」…', gap: reduced ? 60 : 1500 },
+    { text: '结果揭晓', gap: reduced ? 60 : 1700 }
+  ];
+
+  var timers = [];
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+
+  function setAct(n) {
+    stage.setAttribute('data-act', String(n));
+    if (n >= 2) {
+      stage.setAttribute('data-revealed', 'true');
+    } else {
+      stage.removeAttribute('data-revealed');
+    }
+    ticker.textContent = acts[n].text;
+    dots.forEach(function (d, i) { d.classList.toggle('on', i < n); });
+  }
+
+  function play() {
+    clearTimers();
+    playBtn.setAttribute('disabled', 'true');
+    replayBtn.setAttribute('disabled', 'true');
+    setAct(0);
+    var t = 0;
+    for (var i = 1; i < acts.length; i++) {
+      t += acts[i].gap;
+      (function (idx, delay) {
+        timers.push(setTimeout(function () { setAct(idx); }, delay));
+      })(i, t);
+    }
+    timers.push(setTimeout(function () {
+      playBtn.removeAttribute('disabled');
+      replayBtn.removeAttribute('disabled');
+    }, t + 200));
+  }
+
+  playBtn.addEventListener('click', play);
+  replayBtn.addEventListener('click', play);
+})();
+</script>
+</body>
+</html>

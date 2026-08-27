@@ -117,6 +117,13 @@ class Settings:
     playwright_headless: bool = field(
         default_factory=lambda: _env("PLAYWRIGHT_HEADLESS", "true").lower() != "false"
     )
+    # Optional: launch a Chromium/Chrome binary that is already on the machine
+    # instead of the build Playwright downloads for itself. Useful in sandboxes
+    # and CI images that ship a browser whose build number does not match the
+    # installed Playwright. Empty (default) = let Playwright resolve it.
+    playwright_chromium_path: str = field(
+        default_factory=lambda: _env("PLAYWRIGHT_CHROMIUM_PATH")
+    )
 
     @property
     def legacy_base_url(self) -> str:
