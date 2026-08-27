@@ -4,6 +4,11 @@
 
 > **Don't replace RPA. Orchestrate it.**
 
+**[▶ Live walkthrough](https://jack-cuixiaodong.github.io/agentic-insurance-automation/)** — a real captured
+run showing traditional RPA break the moment a legacy screen changes, and this
+agent recover from it automatically. Not a mockup: the trace on that page is
+copied verbatim from an actual run of Case 3 below.
+
 An independent, self-contained proof-of-concept showing how an AI Agent can
 orchestrate **insurance APIs, retrieval-augmented business knowledge (RAG),
 traditional RPA, adaptive browser automation, and human approval** across a
