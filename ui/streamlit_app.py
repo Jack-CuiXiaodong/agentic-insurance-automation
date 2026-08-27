@@ -24,10 +24,12 @@ from insurance.carrier_client import get_provider
 from rag.retriever import get_retriever, reset_retriever
 from legacy_app import manager
 
+# 下拉框按「这个案例演示什么」命名，而不是按报案号。报案号是系统内部标识，
+# 对看演示的人没有意义，只会先让人分神去猜 BX-2024-0003 是什么。
 CASES = {
-    "BX-2024-0001": "案例 1 · 快速理赔直通（小额、低风险）",
-    "BX-2024-0002": "案例 2 · 转人工核赔（金额超限）",
-    "BX-2024-0003": "案例 3 · 查验平台改版 → RPA 中断 → Agent 自愈",
+    "BX-2024-0003": "案例 1 · Agent 获取元素 —— 网页改版后自己找回控件",
+    "BX-2024-0001": "案例 2 · 快速理赔直通 —— 小额、低风险",
+    "BX-2024-0002": "案例 3 · 转人工核赔 —— 金额超限，代码级闸门",
 }
 
 # --------------------------------------------------------------------------
@@ -372,7 +374,7 @@ def _portal_chrome(claim_id: str = "") -> None:
         "</div></div>",
         unsafe_allow_html=True,
     )
-    live = f"● 当前案件 {claim_id}" if claim_id else "● 系统正常运行"
+    live = f"● {CASES.get(claim_id, '').split(' —— ')[0]}" if claim_id else "● 系统正常运行"
     st.markdown(
         '<div class="crumb">⌂ 首页 <span class="sep">&gt;</span> 服务大厅 '
         '<span class="sep">&gt;</span> <strong>理赔自动化演示</strong>'
@@ -707,9 +709,9 @@ def main() -> None:
     with tab_case:
         with st.form("run"):
             col1, col2 = st.columns([1, 2])
-            claim_id = col1.selectbox("报案", list(CASES.keys()),
-                                      format_func=lambda k: f"{k} — {CASES[k]}")
-            task = col2.text_input("任务", value=f"处理报案 {claim_id}")
+            claim_id = col1.selectbox("选择演示案例", list(CASES.keys()),
+                                      format_func=lambda k: CASES[k])
+            task = col2.text_input("交给 Agent 的任务", value="处理这笔车险理赔报案")
             cb, sl = st.columns([1, 1])
             show_browser = cb.checkbox(
                 "显示浏览器窗口（面试现场演示用）",
@@ -767,9 +769,9 @@ def main() -> None:
         elif "result" in st.session_state:
             _render_result(st.session_state["result"])
         else:
-            st.info("选择一笔报案并点击 **运行 Agent**。"
-                    "BX-2024-0001 = 快速直通 · BX-2024-0002 = 转人工核赔 · "
-                    "BX-2024-0003 = 查验平台改版后的 RPA 中断与自愈。")
+            st.info("选一个案例，点 **▶ 三幕演示** 看 Agent 在网页改版后自己找回控件；"
+                    "或点 **运行 Agent** 跑完整流程：取数 → 检索业务规则 → 风险评分 → "
+                    "执行 → 必要时转人工核赔。")
 
     with tab_rules:
         _knowledge_panel()

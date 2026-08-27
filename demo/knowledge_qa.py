@@ -102,7 +102,7 @@ def _mark(text: str, query: str) -> str:
             start = i + 1
 
     if not spans:
-        return _escape(text)
+        return _bold(_escape(text))
 
     # Merge overlaps so marks never nest.
     spans.sort()
@@ -119,7 +119,20 @@ def _mark(text: str, query: str) -> str:
         out.append(f"<mark>{_escape(text[a:b])}</mark>")
         cursor = b
     out.append(_escape(text[cursor:]))
-    return "".join(out)
+    return _bold("".join(out))
+
+
+_BOLD_RE = re.compile(r"\*\*(.+?)\*\*", re.S)
+
+
+def _bold(html: str) -> str:
+    """Render the source document's ``**emphasis**`` instead of showing asterisks.
+
+    The clauses are Markdown the business team wrote; the emphasis is theirs and
+    usually falls on the number that matters. Leaking raw ``**`` into the UI just
+    makes their document look like a bug.
+    """
+    return _BOLD_RE.sub(r"<strong>\1</strong>", html)
 
 
 def _escape(s: str) -> str:
