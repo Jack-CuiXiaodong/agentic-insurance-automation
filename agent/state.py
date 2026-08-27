@@ -54,6 +54,10 @@ class AgentState:
     # (CI, tests, headless servers); the UI turns it on for live demos.
     show_browser: bool = False
 
+    # Seconds to pause between browser actions when show_browser is on. Ignored
+    # headless. 0 = full speed.
+    demo_pace: float = 0.0
+
     # Visual evidence captured while the browser was open: name -> PNG bytes.
     # Deliberately excluded from snapshot(): it is binary, it exists purely so a
     # human can *see* what the automation saw, and it must never leak into the

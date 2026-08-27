@@ -424,12 +424,18 @@ def main() -> None:
         claim_id = col1.selectbox("报案", list(CASES.keys()),
                                   format_func=lambda k: f"{k} — {CASES[k]}")
         task = col2.text_input("任务", value=f"处理报案 {claim_id}")
-        show_browser = st.checkbox(
+        cb, sl = st.columns([1, 1])
+        show_browser = cb.checkbox(
             "显示浏览器窗口（面试现场演示用）",
             value=False,
-            help="勾选后案例 3 会弹出真实浏览器窗口，你可以亲眼看着它定位控件、点击。"
+            help="勾选后会弹出真实浏览器窗口，你可以亲眼看着它定位控件、点击。"
                  "需要一个完整浏览器（Edge / Chrome）；Playwright 自带的 "
                  "chrome-headless-shell 无法有头运行。",
+        )
+        demo_pace = sl.slider(
+            "每步停顿（秒）", 0.0, 2.0, 0.8, 0.1,
+            help="仅在勾选「显示浏览器窗口」时生效。Playwright 默认全速执行，"
+                 "每步几十毫秒，人眼跟不上。0.8 秒左右适合现场讲解。",
         )
         submitted = st.form_submit_button("运行 Agent", type="primary")
 
@@ -438,6 +444,7 @@ def main() -> None:
             task=task or f"处理报案 {claim_id}",
             claim_id=claim_id,
             show_browser=show_browser,
+            demo_pace=demo_pace,
         )
         with st.spinner("Agent 处理中…"):
             st.session_state["result"] = _run(state, Trace())

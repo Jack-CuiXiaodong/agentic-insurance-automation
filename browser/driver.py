@@ -18,10 +18,20 @@ class BrowserUnavailable(RuntimeError):
 
 
 @contextmanager
-def page_session(url: str, headless: bool | None = None) -> Iterator["object"]:
+def page_session(
+    url: str,
+    headless: bool | None = None,
+    slow_mo: int = 0,
+    linger_ms: int = 0,
+) -> Iterator["object"]:
     """Yield a Playwright ``Page`` navigated to ``url``.
 
     Requires ``playwright`` and a Chromium build (``playwright install chromium``).
+
+    ``slow_mo`` and ``linger_ms`` exist purely for *live* demos. Headless runs go
+    full speed; when a human is watching a real window, every action needs to be
+    slow enough to follow and the final frame needs to stay on screen long enough
+    to read. Both default to 0, so CI and tests are unaffected.
     """
     try:
         from playwright.sync_api import sync_playwright
@@ -33,7 +43,7 @@ def page_session(url: str, headless: bool | None = None) -> Iterator["object"]:
 
     headless = settings.playwright_headless if headless is None else headless
     with sync_playwright() as p:
-        launch_kwargs = {"headless": headless}
+        launch_kwargs = {"headless": headless, "slow_mo": slow_mo}
         if settings.playwright_chromium_path:
             launch_kwargs["executable_path"] = settings.playwright_chromium_path
         try:
@@ -43,6 +53,7 @@ def page_session(url: str, headless: bool | None = None) -> Iterator["object"]:
                 "Could not launch Chromium. Run: playwright install chromium "
                 "(or set PLAYWRIGHT_CHROMIUM_PATH to an existing browser binary)"
             ) from exc
+        page = None
         try:
             # A narrow viewport keeps the evidence screenshots tight: the mock
             # platform's card is ~560px, so a 1280px frame is mostly whitespace.
@@ -50,4 +61,10 @@ def page_session(url: str, headless: bool | None = None) -> Iterator["object"]:
             page.goto(url, wait_until="domcontentloaded")
             yield page
         finally:
+            # Hold the last frame so a human watching can actually read it.
+            if page is not None and linger_ms:
+                try:
+                    page.wait_for_timeout(linger_ms)
+                except Exception:  # pragma: no cover - cosmetic only
+                    pass
             browser.close()

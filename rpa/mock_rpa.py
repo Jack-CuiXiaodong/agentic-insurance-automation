@@ -63,9 +63,11 @@ class MockRPAAdapter(RPAAdapter):
         )
         url = f"{self.base_url}/?{query}"
         headless = parameters.get("headless", True)
+        slow_mo = int(float(parameters.get("pace", 0.0)) * 1000)
 
         try:
-            with page_session(url, headless=headless) as page:
+            with page_session(url, headless=headless, slow_mo=slow_mo,
+                              linger_ms=slow_mo * 3) as page:
                 # Classic RPA: go straight for the recorded selector, short timeout,
                 # no fallback, no semantic reasoning.
                 locator = page.locator(BRITTLE_SELECTOR)

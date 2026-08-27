@@ -27,6 +27,7 @@ def execute_rpa(state: AgentState, trace: Trace) -> Dict[str, Any]:
         # The platform's *current* UI state (v1 original, v2 redesigned).
         "ui_variant": claim.get("invoice_platform_ui", "v1"),
         "headless": not state.show_browser,
+        "pace": state.demo_pace if state.show_browser else 0.0,
     }
     trace.add(f"执行 RPA 流程「发票查验」（{_adapter.name}）")
     state.record_tool("execute_rpa")

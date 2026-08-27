@@ -62,6 +62,19 @@ def _score_label(label: str) -> int:
     return score
 
 
+def _highlight(locator) -> None:
+    """Outline the control the agent is about to click. Cosmetic, demo-only."""
+    try:
+        locator.evaluate(
+            "el => { el.style.outline = '3px solid #E23B3B';"
+            " el.style.outlineOffset = '4px';"
+            " el.style.boxShadow = '0 0 0 8px rgba(226,59,59,.18)';"
+            " el.scrollIntoView({block: 'center'}); }"
+        )
+    except Exception:  # pragma: no cover - never let decoration break a run
+        pass
+
+
 def _shoot(page) -> bytes | None:
     """Best-effort page screenshot. Evidence is nice to have, never load-bearing."""
     try:
@@ -101,6 +114,7 @@ def recover_action(
     ui_variant: str = "v2",
     base_url: str | None = None,
     headless: bool | None = None,
+    pace: float = 0.0,
 ) -> RecoveryResult:
     """Inspect the changed screen and complete the intended action semantically."""
     base_url = base_url or settings.legacy_base_url
@@ -116,7 +130,9 @@ def recover_action(
     url = f"{base_url}/?{query}"
     result = RecoveryResult(success=False)
 
-    with page_session(url, headless=headless) as page:
+    slow_mo = int(pace * 1000)
+    with page_session(url, headless=headless, slow_mo=slow_mo,
+                      linger_ms=slow_mo * 3) as page:
         result.steps.append("读取当前页面 DOM")
         result.screenshot_before = _shoot(page)
         candidates = _inspect_buttons(page)
@@ -136,7 +152,13 @@ def recover_action(
 
         # Prefer an accessible, role-based selector over a brittle CSS id.
         result.steps.append("按 role=button + 可访问名称定位控件")
-        page.get_by_role("button", name=best["label"]).click(timeout=3000)
+        target = page.get_by_role("button", name=best["label"])
+        if slow_mo:
+            # Live demo: show the audience which control was picked *before*
+            # clicking it, so the match is visible rather than inferred.
+            _highlight(target)
+            page.wait_for_timeout(slow_mo * 2)
+        target.click(timeout=3000)
         page.wait_for_selector("#result", timeout=5000)
         status = page.locator("#result").get_attribute("data-status")
 
