@@ -41,16 +41,25 @@ AGENT = "agent"
 
 
 @dataclass
+class Shot:
+    """One screenshot plus the caption that says what to look at in it."""
+
+    png: bytes = field(repr=False)
+    caption: str = ""
+
+
+@dataclass
 class Act:
     """One beat of the story, with the evidence that it really happened."""
 
-    n: int
     title: str
     narration: str          # what is happening, in plain language
     context: str            # why it matters -- the line worth saying out loud
     tone: str = INFO
     headline: str = ""      # the one short phrase to put in lights
-    screenshot: Optional[bytes] = field(default=None, repr=False)
+    # Ordered evidence. An act can need more than one frame: the moment the agent
+    # locks onto the control is the point, and the verified result is the payoff.
+    shots: List[Shot] = field(default_factory=list)
     table: List[Dict[str, Any]] = field(default_factory=list)
     table_caption: str = ""
 
@@ -68,7 +77,7 @@ def _url(ui: str, claim: Dict[str, Any]) -> str:
     return f"{settings.legacy_base_url}/?{query}"
 
 
-_BANNER_JS = """([n, title, text, tone]) => {
+_BANNER_JS = """([title, text, tone]) => {
   const palette = {info:'#4B76FC', ok:'#16A34A', fail:'#E23B3B', agent:'#3D38FD'};
   let el = document.getElementById('__demo_banner');
   if (!el) {
@@ -81,18 +90,33 @@ _BANNER_JS = """([n, title, text, tone]) => {
     'padding:13px 22px;box-shadow:0 2px 14px rgba(0,0,0,.28);' +
     'font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;';
   el.innerHTML =
-    '<div style="font-size:12.5px;opacity:.85;letter-spacing:.04em">第 ' + n + ' 幕 · ' + title + '</div>' +
+    '<div style="font-size:12.5px;opacity:.85;letter-spacing:.04em">' + title + '</div>' +
     '<div style="font-size:15px;font-weight:600;margin-top:3px;line-height:1.5">' + text + '</div>';
   document.body.style.paddingTop = el.offsetHeight + 'px';
 }"""
 
 
-def _banner(page, n: int, title: str, text: str, tone: str) -> None:
+def _banner(page, title: str, text: str, tone: str) -> None:
     """Caption the page the automation is driving. Cosmetic; never load-bearing."""
     try:
-        page.evaluate(_BANNER_JS, [n, title, text, tone])
+        page.evaluate(_BANNER_JS, [title, text, tone])
     except Exception:  # pragma: no cover - decoration must not break a run
         pass
+
+
+def _frame(page) -> Optional[bytes]:
+    """Screenshot with the page scrolled home.
+
+    ``_highlight`` calls ``scrollIntoView``, which nudges the page and pushes the
+    fixed narration banner out from under the platform's own header. Scrolling
+    back first keeps every frame framed the same way.
+    """
+    try:
+        page.evaluate("window.scrollTo(0, 0)")
+        page.wait_for_timeout(80)
+    except Exception:  # pragma: no cover - cosmetic only
+        pass
+    return _shoot(page)
 
 
 def _pause(page, ms: int) -> None:
@@ -127,7 +151,7 @@ def run_storyboard(
 
         # ------------------------------------------------------------ act 1
         # The recorded selector matches, the click lands, the invoice verifies.
-        _banner(page, 1, "传统 RPA 正常工作",
+        _banner(page, "传统 RPA 正常工作",
                 f"按录制那天记下的 {BRITTLE_SELECTOR} 定位「查验」按钮 —— 稳定命中", OK)
         _pause(page, beat)
         v1_controls = _inspect_buttons(page)
@@ -136,15 +160,14 @@ def run_storyboard(
         if found_v1:
             _highlight(target)
             _pause(page, beat)
-        shot1 = _shoot(page)
+        shot1 = _frame(page)
         if found_v1:
             target.click(timeout=3000)
             page.wait_for_selector("#result", timeout=5000)
-            _banner(page, 1, "传统 RPA 正常工作", "查验完成 —— 它每天都这样跑，从不出错", OK)
+            _banner(page, "传统 RPA 正常工作", "查验完成 —— 它每天都这样跑，从不出错", OK)
             _pause(page, beat)
 
         acts.append(Act(
-            n=1,
             title="传统 RPA 正常工作",
             tone=OK,
             headline="选择器命中,点击成功",
@@ -154,21 +177,22 @@ def run_storyboard(
             context="这就是 RPA 值钱的地方,也是它被大规模部署的原因:流程固定、规则固定、"
                     "选择器固定,它就能不知疲倦地跑下去,比人快、比人稳、比人便宜。"
                     "问题不在这一步——问题在这一步太好用了,好到没人给它准备后路。",
-            screenshot=shot1,
+            shots=[Shot(shot1, "录制时记下的「查验」按钮——红框就是 RPA 定位到的元素")]
+                  if shot1 else [],
         ))
 
         # ------------------------------------------------------------ act 2
         # Same browser, same tab. The platform is simply not what it was.
         page.goto(_url("v2", claim), wait_until="domcontentloaded")
-        _banner(page, 2, "网页系统更新", "查验平台改版上线,页面变成了现在这样", INFO)
+        _banner(page, "网页系统更新", "查验平台改版上线,页面变成了现在这样", INFO)
         _pause(page, beat)
         v2_controls = _inspect_buttons(page)
 
         count = page.locator(BRITTLE_SELECTOR).count()
-        _banner(page, 2, "RPA 获取元素失败",
+        _banner(page, "RPA 获取元素失败",
                 f"仍然去找 {BRITTLE_SELECTOR} —— 匹配到 {count} 个,流程就此中断", FAIL)
         _pause(page, beat)
-        shot2 = _shoot(page)
+        shot2 = _frame(page)
         _pause(page, beat)
 
         def _first(controls):
@@ -176,7 +200,6 @@ def run_storyboard(
 
         a, b = _first(v1_controls), _first(v2_controls)
         acts.append(Act(
-            n=2,
             title="网页系统更新，RPA 获取元素失败",
             tone=FAIL,
             headline=f"元素未找到:{BRITTLE_SELECTOR}",
@@ -190,7 +213,7 @@ def run_storyboard(
                     "唯一变的是按钮怎么称呼自己——而这恰恰是写死选择器的机器人唯一认得的东西。"
                     "它不理解「查验发票信息」和「查验」是同一件事,因为它根本不理解任何事。"
                     "于是它报错、停在原地、等人来修脚本,而所有走这条流程的单子开始堆积。",
-            screenshot=shot2,
+            shots=[Shot(shot2, "改版后的新页面——原来那个按钮已经不在了")] if shot2 else [],
             table=[
                 {"项目": "主按钮文案", "改版前 v1": a.get("label", "-"), "改版后 v2": b.get("label", "-")},
                 {"项目": "主按钮 id", "改版前 v1": "#" + (a.get("id") or "-"), "改版后 v2": "#" + (b.get("id") or "-")},
@@ -203,30 +226,31 @@ def run_storyboard(
         # ------------------------------------------------------------ act 3
         # Still the same tab, still the page that just broke the RPA. No reload:
         # the agent recovers *in place*, which is the whole claim.
-        _banner(page, 3, "Agent 接手",
+        _banner(page, "Agent 接手",
                 "读取实时 DOM → 枚举可操作控件 → 按意图打分 → 用 role=button 定位", AGENT)
         _pause(page, beat)
         candidates = _inspect_buttons(page)
         best = max(candidates, key=lambda c: c.get("score", 0)) if candidates else {}
         label = best.get("label", "")
         status = ""
+        shot_pick = shot_done = None
         if label:
             picked = page.get_by_role("button", name=label)
             _highlight(picked)
             _pause(page, beat)
-            shot3 = _shoot(page)
+            # The moment it locks on is the point of the whole demo -- keep it.
+            shot_pick = _frame(page)
             picked.click(timeout=3000)
             page.wait_for_selector("#result", timeout=5000)
             status = page.locator("#result").get_attribute("data-status") or ""
-            _banner(page, 3, "Agent 接手",
+            _banner(page, "Agent 接手",
                     f"已用「{label}」完成查验 —— 状态 {status},全程零人工介入", OK)
             _pause(page, beat)
-            shot3 = _shoot(page)
+            shot_done = _frame(page)
         else:
-            shot3 = _shoot(page)
+            shot_pick = _frame(page)
 
         acts.append(Act(
-            n=3,
             title="Agent 接手",
             tone=AGENT,
             headline=f"改用「{label}」完成查验 · {status or '—'}",
@@ -240,7 +264,12 @@ def run_storyboard(
                     "它扛得住改版,是因为定位锚在「人怎么读这个按钮」上,而不是「开发当时"
                     "怎么命名它」上:id 和 class 可以随便改,按钮上写给人看的那几个字不会——"
                     "一变,用户就不认识这个页面了。",
-            screenshot=shot3,
+            shots=[s for s in (
+                Shot(shot_pick, "Agent 按语义锁定的控件——红框标出的就是它自己找回来的那个")
+                if shot_pick else None,
+                Shot(shot_done, "点击之后：查验一致，断掉的流程接上了")
+                if shot_done else None,
+            ) if s],
             table=[
                 {
                     "页面上的控件": c.get("label", ""),

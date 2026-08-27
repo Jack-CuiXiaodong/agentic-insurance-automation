@@ -149,8 +149,7 @@ h3 {
   background: #fff; padding: 10px 14px;
   border-top: 3px solid var(--line);
 }
-.step .k { font-size: 11.5px; color: var(--ink-3); letter-spacing: .06em; }
-.step .v { font-size: 13.5px; font-weight: 600; margin-top: 2px; }
+.step .v { font-size: 13.5px; font-weight: 600; }
 .step.ok    { border-top-color: #16A34A; } .step.ok .v    { color: #16A34A; }
 .step.info  { border-top-color: #4B76FC; } .step.info .v  { color: #4B76FC; }
 .step.fail  { border-top-color: #E23B3B; } .step.fail .v  { color: #E23B3B; }
@@ -168,13 +167,7 @@ h3 {
 .act.agent { border-left-color: #3D38FD; }
 
 .act-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.act-n {
-  font-size: 12px; font-weight: 700; letter-spacing: .08em;
-  color: #fff; background: var(--ink-3); border-radius: 3px; padding: 3px 9px;
-}
-.act.ok .act-n { background: #16A34A; } .act.info .act-n { background: #4B76FC; }
-.act.fail .act-n { background: #E23B3B; } .act.agent .act-n { background: #3D38FD; }
-.act-title { font-size: 17px; font-weight: 700; color: var(--ink); }
+.act-title { font-size: 18px; font-weight: 700; color: var(--ink); }
 .act-badge {
   margin-left: auto; font-size: 12px; font-weight: 600;
   border-radius: 999px; padding: 3px 12px;
@@ -198,9 +191,14 @@ h3 {
 .act.agent .act-headline { color: #3D38FD; }
 
 .act-narration { font-size: 14.5px; color: var(--ink); line-height: 1.85; margin: 0 0 14px; }
+.act-fig { margin: 0 0 16px; }
 .act-shot {
   width: 100%; max-width: 620px; display: block;
-  border: 1px solid var(--line); border-radius: 4px; margin: 0 auto 14px;
+  border: 1px solid var(--line); border-radius: 4px; margin: 0 auto;
+}
+.shot-cap {
+  max-width: 620px; margin: 8px auto 0; text-align: center;
+  font-size: 12.5px; color: var(--ink-3); line-height: 1.7;
 }
 
 /* context：整个演示的解说词，必须比正文更抢眼 */
@@ -392,17 +390,19 @@ _TONE_BADGE = {
 def _render_acts(acts: List[Act]) -> None:
     """Render the four-act replay: one card per act, context in its own spotlight."""
     steps = "".join(
-        f"<div class='step {a.tone}'><div class='k'>第 {a.n} 幕</div>"
-        f"<div class='v'>{a.title}</div></div>"
+        f"<div class='step {a.tone}'><div class='v'>{a.title}</div></div>"
         for a in acts
     )
     st.markdown(f"<div class='stepper'>{steps}</div>", unsafe_allow_html=True)
 
     for a in acts:
-        shot = ""
-        if a.screenshot:
-            b64 = base64.b64encode(a.screenshot).decode("ascii")
-            shot = f"<img class='act-shot' src='data:image/png;base64,{b64}' alt='第{a.n}幕截图'>"
+        shots = ""
+        for sh in a.shots:
+            b64 = base64.b64encode(sh.png).decode("ascii")
+            cap = f"<div class='shot-cap'>{sh.caption}</div>" if sh.caption else ""
+            shots += (f"<figure class='act-fig'>"
+                      f"<img class='act-shot' src='data:image/png;base64,{b64}' alt='{a.title}'>"
+                      f"{cap}</figure>")
 
         tbl = ""
         if a.table:
@@ -417,12 +417,12 @@ def _render_acts(acts: List[Act]) -> None:
 
         st.markdown(
             f"<div class='act {a.tone}'>"
-            f"<div class='act-bar'><span class='act-n'>第 {a.n} 幕</span>"
+            f"<div class='act-bar'>"
             f"<span class='act-title'>{a.title}</span>"
             f"<span class='act-badge'>{_TONE_BADGE.get(a.tone, '')}</span></div>"
             f"<div class='act-headline'>{a.headline}</div>"
             f"<p class='act-narration'>{a.narration}</p>"
-            f"{shot}"
+            f"{shots}"
             f"<div class='act-context'><span class='lbl'>这一幕背后</span>"
             + "".join(f"<p>{para}</p>" for para in a.context.split("\n\n"))
             + "</div>"
@@ -618,8 +618,9 @@ def main() -> None:
 
     if "acts" in st.session_state:
         st.markdown(
-            "### 一次网页改版，三幕之内发生的全部事情\n"
-            "下面每一幕的截图都来自刚刚这次真实运行，不是示意图。"
+            "### 一次网页改版，从头到尾发生的全部事情\n"
+            "下面的截图都来自刚刚这次真实运行，不是示意图；"
+            "整场只开了一个浏览器、一个标签页。"
         )
         _render_acts(st.session_state["acts"])
     elif "result" in st.session_state:
