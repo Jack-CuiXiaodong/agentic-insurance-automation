@@ -9,17 +9,17 @@
 一次真实运行的完整记录：传统 RPA 在发票查验平台改版当天当场瘫痪，本项目的 Agent
 读取页面语义、自己找回按钮、把流程跑完。页面上的执行轨迹是终端里原样拷出来的，不是效果图。
 
-一个独立、自包含的技术验证：AI Agent 如何编排**保司业务数据、RAG 业务规则检索、
+一个独立、自包含的技术验证：AI Agent 如何编排**保险公司业务数据、RAG 业务规则检索、
 传统 RPA、自适应浏览器自动化、以及人工核赔**，跑通一条合成的车险理赔流水线。
 
-论点不是"AI 取代 RPA"，恰恰相反：当一家保司已经在确定性 RPA 上投入很深时，
+论点不是"AI 取代 RPA"，恰恰相反：当一家保险公司已经在确定性 RPA 上投入很深时，
 最高杠杆的做法是在它**上面**加一层智能编排层——能理解、能规划、能检索出决策依据、
 能路由到正确的执行工具，并且在脆弱的自动化断掉时自己想办法。
 
 ```mermaid
 flowchart TD
     A[AI Agent · 编排层]
-    A --> API[保司数据接口]
+    A --> API[保险公司数据接口]
     A --> RAG[RAG · 业务规则]
     A --> RPA[RPA · 存量自动化]
     A --> BR[浏览器 · Playwright]
@@ -80,14 +80,14 @@ flowchart TD
       P[规划 / 推理] --> TR[工具路由]
     end
 
-    TR -->|取数| API[保司数据工具]
+    TR -->|取数| API[保险公司数据工具]
     TR -->|规则| RAG[RAG 检索器]
     TR -->|评分与结论| RISK[确定性风险引擎]
     TR -->|确定性执行| RPA[RPA 适配器]
     TR -->|自适应自愈| PW[Playwright 自愈]
     TR -->|超限额 / 高风险| HUM[人工核赔]
 
-    API --> BE[(保司后端：mock / 核心系统)]
+    API --> BE[(保险公司后端：mock / 核心系统)]
     RAG --> KB[(knowledge/*.md 中文规则)]
     RPA --> LEG[发票查验平台]
     PW --> LEG
@@ -180,7 +180,7 @@ Agent 是基于**检索到的依据**做决策，不是基于模型记忆；这�
 
 | 情形 | 路由到 |
 |------|--------|
-| 需要报案 / 保单 / 历史出险 | 保司数据工具 |
+| 需要报案 / 保单 / 历史出险 | 保险公司数据工具 |
 | 需要适用的业务规则 | RAG（`search_rules`） |
 | 需要风险评分与核赔结论 | 确定性风险引擎（`calculate_risk`） |
 | 结论 = 自动核赔 | RPA 发票查验（`execute_rpa`） |
@@ -253,7 +253,7 @@ python walkthrough.py 1-8    # 前 8 层，不需要浏览器
 | `LLM_API_KEY` | — | 所选 OpenAI 兼容厂商的 key |
 | `LLM_MODEL` / `LLM_BASE_URL` | 预置默认 | 覆盖厂商预设 |
 | `INSURANCE_PROVIDER` | `mock` | `mock` / `core` |
-| `CORE_API_BASE_URL` / `CORE_API_KEY` | — | 仅在接保司核心系统时需要 |
+| `CORE_API_BASE_URL` / `CORE_API_KEY` | — | 仅在接保险公司核心系统时需要 |
 | `LEGACY_HOST` / `LEGACY_PORT` | `127.0.0.1` / `5001` | 模拟查验平台 |
 | `PLAYWRIGHT_HEADLESS` | `true` | 现场演示可设 false 看真实点击 |
 | `PLAYWRIGHT_CHROMIUM_PATH` | — | 指定已有的 Chromium/Chrome，用于沙箱 / CI 镜像 |
@@ -276,7 +276,7 @@ agentic-insurance-automation/
 ├── agent/                 # Agent 循环、路由、状态、提示词、执行轨迹
 ├── llm/                   # 后端抽象：anthropic + openai 兼容 + 确定性
 ├── tools/                 # Agent 可选的工具目录
-├── insurance/             # 保司数据抽象：mock + 核心系统骨架
+├── insurance/             # 保险公司数据抽象：mock + 核心系统骨架
 ├── rag/                   # 切块 + 检索（中文词法默认，FAISS 骨架）
 ├── risk/                  # 确定性风险与核赔结论引擎
 ├── rpa/                   # RPAAdapter 接口 + MockRPAAdapter
@@ -298,13 +298,13 @@ agentic-insurance-automation/
   换成国内可达的模型是配置变更而非代码变更。
 - **状态快照式循环。** 每一步都从显式的 `AgentState` 重新推导，人工中断后能干净续跑。
 - **治理写在代码里。** 人工核赔闸门是护栏，不是提示词里的请求。
-- **干净的接缝。** 保司数据源、RPA 适配器、RAG 检索器、LLM 后端全是接口 + 默认实现 +
+- **干净的接缝。** 保险公司数据源、RPA 适配器、RAG 检索器、LLM 后端全是接口 + 默认实现 +
   文档化的替换点。业务场景本地化时，`agent/`、`llm/`、`tools/registry.py`
   这些架构层一行都没动过。
 
 ## 14. 局限 · Limitations
 
-- 保司后端是合成 mock；核心系统适配器是骨架。
+- 保险公司后端是合成 mock；核心系统适配器是骨架。
 - RPA 层是 **mock 适配器**，不是真实的企业 RPA 产品。
 - 知识库规模小且经过整理；默认检索器是词法的（非语义向量）。
 - 查验平台是最小化的本地模拟，**不是**任何真实平台，也没有使用其任何标识。
@@ -312,7 +312,7 @@ agentic-insurance-automation/
 ## 15. 后续方向 · Future Work
 
 - 把真实企业 RPA 接入 `RPAAdapter`（UiPath / 艺赛旗 iS-RPA / 影刀 / Automation Anywhere）。
-- 把保司核心系统接入 `insurance/carrier_client.py`。
+- 把保险公司核心系统接入 `insurance/carrier_client.py`。
 - 用 embeddings + FAISS 替换词法检索器（`FaissRetriever` 骨架已就位）。
 - 加入单证理解（OCR / 要素抽取）处理定损单与发票影像。
 - 持久化运行记录，为审批建立审计日志。
@@ -330,4 +330,4 @@ agentic-insurance-automation/
 ### 一句话 · Key Insight
 
 > 目标不是用 AI 取代 RPA，而是让 RPA 成为一个智能编排者**可调用的多种执行能力之一**
-> ——让保司已有的自动化投入被*延长*，而不是被扔掉。
+> ——让保险公司已有的自动化投入被*延长*，而不是被扔掉。
