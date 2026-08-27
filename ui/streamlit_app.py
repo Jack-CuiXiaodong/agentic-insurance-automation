@@ -7,8 +7,9 @@ human-in-the-loop approval gate.
 
 from __future__ import annotations
 
+import base64
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional
+from typing import List, Optional
 
 import streamlit as st
 
@@ -17,6 +18,8 @@ from agent.router import AWAITING_HUMAN
 from agent.state import AgentState, decision_label
 from agent.trace import Trace
 from config import settings
+from demo.storyboard import Act, run_storyboard
+from insurance.carrier_client import get_provider
 from legacy_app import manager
 
 CASES = {
@@ -137,6 +140,96 @@ h3 {
 /* 侧栏 */
 [data-testid="stSidebar"] { background: #fff; border-right: 1px solid var(--line); }
 [data-testid="stSidebar"] h2 { font-size: 1rem !important; color: var(--brand); }
+
+/* ---- 四幕演示：每幕一张卡，context 单独高亮成解释框 ---- */
+.stepper { display: flex; gap: 8px; margin: 6px 0 16px; flex-wrap: wrap; }
+.step {
+  flex: 1; min-width: 150px;
+  border: 1px solid var(--line); border-radius: 4px;
+  background: #fff; padding: 10px 14px;
+  border-top: 3px solid var(--line);
+}
+.step .k { font-size: 11.5px; color: var(--ink-3); letter-spacing: .06em; }
+.step .v { font-size: 13.5px; font-weight: 600; margin-top: 2px; }
+.step.ok    { border-top-color: #16A34A; } .step.ok .v    { color: #16A34A; }
+.step.info  { border-top-color: #4B76FC; } .step.info .v  { color: #4B76FC; }
+.step.fail  { border-top-color: #E23B3B; } .step.fail .v  { color: #E23B3B; }
+.step.agent { border-top-color: #3D38FD; } .step.agent .v { color: #3D38FD; }
+
+.act {
+  background: #fff; border: 1px solid var(--line); border-radius: 4px;
+  border-left: 4px solid var(--line);
+  padding: 20px 24px 22px; margin-bottom: 14px;
+  box-shadow: 0 1px 2px rgba(31,35,41,.04);
+}
+.act.ok    { border-left-color: #16A34A; }
+.act.info  { border-left-color: #4B76FC; }
+.act.fail  { border-left-color: #E23B3B; }
+.act.agent { border-left-color: #3D38FD; }
+
+.act-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.act-n {
+  font-size: 12px; font-weight: 700; letter-spacing: .08em;
+  color: #fff; background: var(--ink-3); border-radius: 3px; padding: 3px 9px;
+}
+.act.ok .act-n { background: #16A34A; } .act.info .act-n { background: #4B76FC; }
+.act.fail .act-n { background: #E23B3B; } .act.agent .act-n { background: #3D38FD; }
+.act-title { font-size: 17px; font-weight: 700; color: var(--ink); }
+.act-badge {
+  margin-left: auto; font-size: 12px; font-weight: 600;
+  border-radius: 999px; padding: 3px 12px;
+}
+.act.ok .act-badge    { background: #E7F6EC; color: #16A34A; }
+.act.info .act-badge  { background: #E8EDFF; color: #4B76FC; }
+.act.fail .act-badge  { background: #FDECEC; color: #E23B3B; }
+.act.agent .act-badge { background: #ECEBFF; color: #3D38FD; }
+
+/* 醒目结论：一句话,放在灯下 */
+.act-headline {
+  font-size: 21px; font-weight: 700; margin: 14px 0 10px; line-height: 1.4;
+}
+.act.ok .act-headline    { color: #16A34A; }
+.act.info .act-headline  { color: var(--ink); }
+.act.fail .act-headline  {
+  color: #E23B3B; font-family: "IBM Plex Mono", Consolas, monospace;
+  font-size: 18px; background: #FDECEC; border: 1px dashed #F3B4B4;
+  border-radius: 4px; padding: 12px 16px; display: inline-block;
+}
+.act.agent .act-headline { color: #3D38FD; }
+
+.act-narration { font-size: 14.5px; color: var(--ink); line-height: 1.85; margin: 0 0 14px; }
+.act-shot {
+  width: 100%; max-width: 620px; display: block;
+  border: 1px solid var(--line); border-radius: 4px; margin: 0 auto 14px;
+}
+
+/* context：整个演示的解说词，必须比正文更抢眼 */
+.act-context {
+  background: linear-gradient(90deg, var(--tint-2), #fff 70%);
+  border: 1px solid var(--line); border-left: 3px solid var(--brand);
+  border-radius: 4px; padding: 14px 18px; margin-top: 4px;
+}
+.act.ok .act-context    { border-left-color: #16A34A; }
+.act.fail .act-context  { border-left-color: #E23B3B; }
+.act.agent .act-context { border-left-color: #3D38FD; }
+.act-context .lbl {
+  display: block; font-size: 12px; font-weight: 700; letter-spacing: .08em;
+  color: var(--ink-3); margin-bottom: 6px;
+}
+.act-context p { margin: 0; font-size: 14px; color: var(--ink-2); line-height: 1.9; }
+
+table.acttbl {
+  width: 100%; border-collapse: collapse; margin-top: 14px;
+  border: 1px solid var(--line); border-radius: 4px; font-size: 13px; overflow: hidden;
+}
+table.acttbl th {
+  text-align: left; background: #F7F8FA; color: var(--ink-2); font-weight: 600;
+  padding: 8px 12px; border-bottom: 1px solid var(--line); white-space: nowrap;
+}
+table.acttbl td { padding: 8px 12px; border-bottom: 1px solid var(--line); }
+table.acttbl tr:last-child td { border-bottom: none; }
+table.acttbl tr.hit td { background: var(--tint); font-weight: 600; }
+.acttbl-cap { font-size: 12px; color: var(--ink-3); margin-top: 6px; }
 
 /* 现场取证：截图 + 候选控件表 */
 .evidence-head {
@@ -283,6 +376,56 @@ def _evidence_panel(s: AgentState) -> None:
             "<table class='evidence'><thead><tr>"
             "<th>页面上的控件</th><th>id</th><th>name</th><th>意图得分</th>"
             "</tr></thead><tbody>" + "".join(rows) + "</tbody></table>",
+            unsafe_allow_html=True,
+        )
+
+
+_TONE_BADGE = {
+    "ok": "稳定运行",
+    "info": "环境变化",
+    "fail": "自动化中断",
+    "agent": "Agent 接手",
+}
+
+
+def _render_acts(acts: List[Act]) -> None:
+    """Render the four-act replay: one card per act, context in its own spotlight."""
+    steps = "".join(
+        f"<div class='step {a.tone}'><div class='k'>第 {a.n} 幕</div>"
+        f"<div class='v'>{a.title}</div></div>"
+        for a in acts
+    )
+    st.markdown(f"<div class='stepper'>{steps}</div>", unsafe_allow_html=True)
+
+    for a in acts:
+        shot = ""
+        if a.screenshot:
+            b64 = base64.b64encode(a.screenshot).decode("ascii")
+            shot = f"<img class='act-shot' src='data:image/png;base64,{b64}' alt='第{a.n}幕截图'>"
+
+        tbl = ""
+        if a.table:
+            cols = [k for k in a.table[0] if not k.startswith("_")]
+            head = "".join(f"<th>{c}</th>" for c in cols)
+            body = ""
+            for row in a.table:
+                cls = " class='hit'" if row.get("_hit") else ""
+                body += f"<tr{cls}>" + "".join(f"<td>{row.get(c, '')}</td>" for c in cols) + "</tr>"
+            cap = f"<div class='acttbl-cap'>{a.table_caption}</div>" if a.table_caption else ""
+            tbl = f"<table class='acttbl'><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>{cap}"
+
+        st.markdown(
+            f"<div class='act {a.tone}'>"
+            f"<div class='act-bar'><span class='act-n'>第 {a.n} 幕</span>"
+            f"<span class='act-title'>{a.title}</span>"
+            f"<span class='act-badge'>{_TONE_BADGE.get(a.tone, '')}</span></div>"
+            f"<div class='act-headline'>{a.headline}</div>"
+            f"<p class='act-narration'>{a.narration}</p>"
+            f"{shot}"
+            f"<div class='act-context'><span class='lbl'>这一幕背后</span>"
+            f"<p>{a.context}</p></div>"
+            f"{tbl}"
+            "</div>",
             unsafe_allow_html=True,
         )
 
@@ -437,9 +580,31 @@ def main() -> None:
             help="仅在勾选「显示浏览器窗口」时生效。Playwright 默认全速执行，"
                  "每步几十毫秒，人眼跟不上。0.8 秒左右适合现场讲解。",
         )
-        submitted = st.form_submit_button("运行 Agent", type="primary")
+        b1, b2 = st.columns([1, 1])
+        submitted = b1.form_submit_button("运行 Agent", type="primary",
+                                          use_container_width=True)
+        story = b2.form_submit_button("▶ 四幕演示（面试讲解用）",
+                                      use_container_width=True,
+                                      help="不跑完整 Agent，而是把「RPA 好用 → 页面改版 → "
+                                           "RPA 撞墙 → Agent 接手」这条时间线一幕一幕演一遍，"
+                                           "每幕都有真实截图和解说。")
+
+    if story:
+        claim = get_provider().get_claim(claim_id) or {}
+        with st.spinner("正在按四幕重放…（有头模式下请看弹出的浏览器窗口）"):
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                manager.ensure_running()
+                st.session_state["acts"] = pool.submit(
+                    run_storyboard, claim=claim,
+                    headless=not show_browser,
+                    # Pacing exists for a human watching a real window. Headless
+                    # runs must stay fast, or "四幕演示" takes a minute for nothing.
+                    pace=demo_pace if show_browser else 0.0,
+                ).result()
+        st.session_state.pop("result", None)
 
     if submitted:
+        st.session_state.pop("acts", None)
         state = AgentState(
             task=task or f"处理报案 {claim_id}",
             claim_id=claim_id,
@@ -449,7 +614,13 @@ def main() -> None:
         with st.spinner("Agent 处理中…"):
             st.session_state["result"] = _run(state, Trace())
 
-    if "result" in st.session_state:
+    if "acts" in st.session_state:
+        st.markdown(
+            "### 一次界面改版，四幕之内发生的全部事情\n"
+            "下面每一幕的截图都来自刚刚这次真实运行，不是示意图。"
+        )
+        _render_acts(st.session_state["acts"])
+    elif "result" in st.session_state:
         _render_result(st.session_state["result"])
     else:
         st.info("选择一笔报案并点击 **运行 Agent**。"
