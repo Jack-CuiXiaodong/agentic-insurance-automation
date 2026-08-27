@@ -21,6 +21,7 @@ def browser_recover(state: AgentState, trace: Trace) -> Dict[str, Any]:
             invoice_code=claim.get("invoice_code", ""),
             invoice_no=claim.get("invoice_no", ""),
             ui_variant=claim.get("invoice_platform_ui", "v2"),
+            headless=not state.show_browser,
         )
     except BrowserUnavailable as exc:
         state.recovery_result = {"success": False, "steps": [str(exc)]}
@@ -28,6 +29,8 @@ def browser_recover(state: AgentState, trace: Trace) -> Dict[str, Any]:
         return {"success": False, "error": str(exc), "browser_unavailable": True}
 
     state.recovery_result = result.as_dict()
+    state.add_evidence("recovery_before", result.screenshot_before)
+    state.add_evidence("recovery_after", result.screenshot_after)
     for step in result.steps:
         trace.ok(step) if result.success else trace.add(step)
     if result.success:

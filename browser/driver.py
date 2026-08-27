@@ -44,7 +44,9 @@ def page_session(url: str, headless: bool | None = None) -> Iterator["object"]:
                 "(or set PLAYWRIGHT_CHROMIUM_PATH to an existing browser binary)"
             ) from exc
         try:
-            page = browser.new_page()
+            # A narrow viewport keeps the evidence screenshots tight: the mock
+            # platform's card is ~560px, so a 1280px frame is mostly whitespace.
+            page = browser.new_page(viewport={"width": 900, "height": 620})
             page.goto(url, wait_until="domcontentloaded")
             yield page
         finally:

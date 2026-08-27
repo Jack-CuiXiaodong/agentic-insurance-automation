@@ -26,12 +26,14 @@ def execute_rpa(state: AgentState, trace: Trace) -> Dict[str, Any]:
         "amount": claim.get("amount", ""),
         # The platform's *current* UI state (v1 original, v2 redesigned).
         "ui_variant": claim.get("invoice_platform_ui", "v1"),
+        "headless": not state.show_browser,
     }
     trace.add(f"执行 RPA 流程「发票查验」（{_adapter.name}）")
     state.record_tool("execute_rpa")
     try:
         result = _adapter.execute_workflow(WORKFLOW, params)
         state.rpa_result = result.as_dict()
+        state.add_evidence("rpa_success", result.screenshot)
         trace.ok(f"RPA 执行完成（{result.details.get('result_status')}）")
         return {"success": True, "result": result.as_dict()}
     except BrowserUnavailable as exc:
@@ -49,5 +51,6 @@ def execute_rpa(state: AgentState, trace: Trace) -> Dict[str, Any]:
         return {"success": False, "error": str(exc), "browser_unavailable": True}
     except RPAExecutionError as exc:
         state.rpa_result = {"success": False, "workflow": WORKFLOW, "message": str(exc)}
+        state.add_evidence("rpa_failure", getattr(exc, "screenshot", None))
         trace.fail(f"RPA 失败：{exc}")
         return {"success": False, "error": str(exc)}

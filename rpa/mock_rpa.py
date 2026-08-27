@@ -33,6 +33,14 @@ BRITTLE_SELECTOR = "#verify-invoice-btn"
 WORKFLOW = "verify_invoice"
 
 
+def _shoot(page) -> bytes | None:
+    """Best-effort page screenshot. Evidence is nice to have, never load-bearing."""
+    try:
+        return page.screenshot(full_page=True)
+    except Exception:  # pragma: no cover - a missing screenshot must not fail a run
+        return None
+
+
 class MockRPAAdapter(RPAAdapter):
     name = "mock-rpa"
 
@@ -54,16 +62,20 @@ class MockRPAAdapter(RPAAdapter):
             }
         )
         url = f"{self.base_url}/?{query}"
+        headless = parameters.get("headless", True)
 
         try:
-            with page_session(url) as page:
+            with page_session(url, headless=headless) as page:
                 # Classic RPA: go straight for the recorded selector, short timeout,
                 # no fallback, no semantic reasoning.
                 locator = page.locator(BRITTLE_SELECTOR)
                 if locator.count() == 0:
+                    # Photograph the wall before walking into it. This screenshot
+                    # is what turns "元素未找到" from an assertion into evidence.
                     raise RPAExecutionError(
                         f"元素未找到：{BRITTLE_SELECTOR}"
-                        f"（该页面上已不存在原「查验」按钮）"
+                        f"（该页面上已不存在原「查验」按钮）",
+                        screenshot=_shoot(page),
                     )
                 locator.click(timeout=3000)
                 page.wait_for_selector("#result", timeout=5000)
@@ -73,6 +85,7 @@ class MockRPAAdapter(RPAAdapter):
                     workflow=workflow_name,
                     message="维修发票已通过查验平台验真。",
                     details={"selector": BRITTLE_SELECTOR, "result_status": status},
+                    screenshot=_shoot(page),
                 )
         except BrowserUnavailable:
             raise

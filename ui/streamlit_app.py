@@ -104,8 +104,22 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
   background: var(--tint-2); border: 1px solid var(--line);
   border-radius: 4px; padding: 14px 16px;
 }
-[data-testid="stMetricValue"] { color: var(--brand); font-weight: 700; }
+[data-testid="stMetricValue"] {
+  color: var(--brand); font-weight: 700;
+  font-size: 1.55rem !important; line-height: 1.35;
+  /* 中文四个字在默认字号下会被省略号截断，这里放开换行 */
+  white-space: normal !important; overflow: visible !important;
+  text-overflow: clip !important; word-break: keep-all;
+}
+[data-testid="stMetricValue"] > div,
+[data-testid="stMetricValue"] * {
+  white-space: normal !important; overflow: visible !important;
+  text-overflow: clip !important;
+}
 [data-testid="stMetricLabel"] p { color: var(--ink-2) !important; font-size: 13px !important; }
+[data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * {
+  white-space: normal !important; overflow: visible !important;
+}
 
 /* 小标题：细分隔线，对齐门户「保单查询」标题 */
 h3 {
@@ -123,6 +137,47 @@ h3 {
 /* 侧栏 */
 [data-testid="stSidebar"] { background: #fff; border-right: 1px solid var(--line); }
 [data-testid="stSidebar"] h2 { font-size: 1rem !important; color: var(--brand); }
+
+/* 现场取证：截图 + 候选控件表 */
+.evidence-head {
+  display: flex; align-items: baseline; gap: 10px;
+  margin: 26px 0 2px;
+}
+.evidence-head h3 {
+  margin: 0 !important; border: none !important; padding: 0 !important;
+  font-size: 1.05rem !important;
+}
+.evidence-head .sub { font-size: 12.5px; color: var(--ink-3); }
+.evidence-note {
+  background: var(--tint-2); border: 1px solid var(--line);
+  border-left: 3px solid var(--brand); border-radius: 4px;
+  padding: 10px 14px; margin: 10px 0 14px;
+  font-size: 13px; color: var(--ink-2);
+}
+table.evidence {
+  width: 100%; border-collapse: collapse;
+  background: #fff; border: 1px solid var(--line); border-radius: 4px;
+  font-size: 13px; overflow: hidden;
+}
+table.evidence th {
+  text-align: left; font-weight: 600; color: var(--ink-2);
+  background: var(--surface-2, #F7F8FA);
+  padding: 9px 12px; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+table.evidence td {
+  padding: 9px 12px; border-bottom: 1px solid var(--line); color: var(--ink);
+}
+table.evidence tr:last-child td { border-bottom: none; }
+table.evidence td.mono {
+  font-family: "IBM Plex Mono", Consolas, monospace;
+  font-size: 12px; color: var(--ink-2);
+}
+table.evidence tr.hit td { background: var(--tint); font-weight: 600; }
+table.evidence .hitmark {
+  color: var(--brand); font-weight: 600; font-size: 12px; margin-left: 8px;
+}
+table.evidence td.score { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* 页面标题卡：对齐门户「保单查询」白卡片 */
 .titlecard {
@@ -171,6 +226,65 @@ def _portal_chrome(claim_id: str = "") -> None:
         "<p>AI Agent 编排保司数据、RAG 业务规则、RPA 发票查验、浏览器自愈与人工核赔。</p></div>",
         unsafe_allow_html=True,
     )
+
+
+def _evidence_panel(s: AgentState) -> None:
+    """Show what the automation actually saw.
+
+    The recovery story lives or dies here: without the screenshots and the
+    candidate table, "Agent 自己找回了按钮" is a claim in a log file. With them,
+    a reviewer can check it in three seconds.
+    """
+    ev = s.evidence or {}
+    rec = s.recovery_result or {}
+    candidates = rec.get("candidates") or []
+    if not ev and not candidates:
+        return
+
+    st.markdown(
+        '<div class="evidence-head"><h3>现场取证</h3>'
+        "<span class='sub'>以下截图与控件清单来自本次真实运行，非示意图</span></div>",
+        unsafe_allow_html=True,
+    )
+
+    shots = [
+        ("rpa_failure", "① RPA 撞墙的那一刻", "写死的 #verify-invoice-btn 在改版后的页面上已不存在"),
+        ("recovery_after", "② Agent 自愈后的结果页", "换用「查验发票信息」完成查验，状态 VERIFIED"),
+        ("rpa_success", "RPA 执行成功的结果页", "页面未改版，写死的选择器仍然有效"),
+    ]
+    present = [(k, t, c) for k, t, c in shots if ev.get(k)]
+    if present:
+        cols = st.columns(len(present))
+        for col, (key, title, cap) in zip(cols, present):
+            with col:
+                st.markdown(f"**{title}**")
+                st.image(ev[key], caption=cap, use_container_width=True)
+
+    if candidates:
+        matched = rec.get("matched_label", "")
+        st.markdown(
+            '<div class="evidence-note">Agent 没有猜，也没有用坐标。它读取实时 DOM，'
+            "枚举页面上所有可操作控件，按意图关键词打分，选出得分最高的那个，"
+            "再用 <code>role=button</code> + 可访问名称去定位——这是选择器失效后依然站得住的路径。</div>",
+            unsafe_allow_html=True,
+        )
+        rows = []
+        for c in sorted(candidates, key=lambda x: -int(x.get("score", 0) or 0)):
+            is_hit = c.get("label") == matched
+            hit = " class='hit'" if is_hit else ""
+            mark = "<span class='hitmark'>&larr; 命中</span>" if is_hit else ""
+            rows.append(
+                f"<tr{hit}><td>{c.get('label','')}{mark}</td>"
+                f"<td class='mono'>#{c.get('id','') or '-'}</td>"
+                f"<td class='mono'>{c.get('name','') or '-'}</td>"
+                f"<td class='score'>{c.get('score', 0)}</td></tr>"
+            )
+        st.markdown(
+            "<table class='evidence'><thead><tr>"
+            "<th>页面上的控件</th><th>id</th><th>name</th><th>意图得分</th>"
+            "</tr></thead><tbody>" + "".join(rows) + "</tbody></table>",
+            unsafe_allow_html=True,
+        )
 
 
 def _portal_footer() -> None:
@@ -255,6 +369,8 @@ def _render_result(res: AgentResult) -> None:
         st.subheader("已调用工具")
         st.write(" → ".join(s.executed_tools) or "-")
 
+    _evidence_panel(s)
+
     if risk.get("risk_factors"):
         st.info("风险因子：" + "、".join(risk["risk_factors"]))
 
@@ -308,10 +424,21 @@ def main() -> None:
         claim_id = col1.selectbox("报案", list(CASES.keys()),
                                   format_func=lambda k: f"{k} — {CASES[k]}")
         task = col2.text_input("任务", value=f"处理报案 {claim_id}")
+        show_browser = st.checkbox(
+            "显示浏览器窗口（面试现场演示用）",
+            value=False,
+            help="勾选后案例 3 会弹出真实浏览器窗口，你可以亲眼看着它定位控件、点击。"
+                 "需要一个完整浏览器（Edge / Chrome）；Playwright 自带的 "
+                 "chrome-headless-shell 无法有头运行。",
+        )
         submitted = st.form_submit_button("运行 Agent", type="primary")
 
     if submitted:
-        state = AgentState(task=task or f"处理报案 {claim_id}", claim_id=claim_id)
+        state = AgentState(
+            task=task or f"处理报案 {claim_id}",
+            claim_id=claim_id,
+            show_browser=show_browser,
+        )
         with st.spinner("Agent 处理中…"):
             st.session_state["result"] = _run(state, Trace())
 

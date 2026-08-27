@@ -50,8 +50,23 @@ class AgentState:
     executed_tools: List[str] = field(default_factory=list)
     final_summary: Optional[str] = None
 
+    # Whether this run should drive a *visible* browser window. Off by default
+    # (CI, tests, headless servers); the UI turns it on for live demos.
+    show_browser: bool = False
+
+    # Visual evidence captured while the browser was open: name -> PNG bytes.
+    # Deliberately excluded from snapshot(): it is binary, it exists purely so a
+    # human can *see* what the automation saw, and it must never leak into the
+    # JSON state the agent loop reasons over.
+    evidence: Dict[str, bytes] = field(default_factory=dict, repr=False)
+
     def record_tool(self, name: str) -> None:
         self.executed_tools.append(name)
+
+    def add_evidence(self, name: str, png: Optional[bytes]) -> None:
+        """Store a screenshot taken during this run, if one was captured."""
+        if png:
+            self.evidence[name] = png
 
     def snapshot(self) -> Dict[str, Any]:
         """A JSON-friendly view for the UI / tests."""

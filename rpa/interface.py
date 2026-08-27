@@ -15,7 +15,15 @@ from typing import Any, Dict
 
 
 class RPAExecutionError(Exception):
-    """A deterministic RPA workflow failed (e.g. a selector no longer matches)."""
+    """A deterministic RPA workflow failed (e.g. a selector no longer matches).
+
+    Carries an optional screenshot of the page *as the bot saw it* at the moment
+    of failure. Without it, "元素未找到" is a claim; with it, it is evidence.
+    """
+
+    def __init__(self, message: str, screenshot: bytes | None = None):
+        super().__init__(message)
+        self.screenshot = screenshot
 
 
 @dataclass
@@ -24,6 +32,9 @@ class RPAResult:
     workflow: str
     message: str = ""
     details: Dict[str, Any] = field(default_factory=dict)
+    # PNG of the final page. Never enters as_dict() -- binary has no business in
+    # the JSON state; the UI reads this attribute directly.
+    screenshot: bytes | None = field(default=None, repr=False)
 
     def as_dict(self) -> Dict[str, Any]:
         return {
