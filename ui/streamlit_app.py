@@ -18,8 +18,10 @@ from agent.router import AWAITING_HUMAN
 from agent.state import AgentState, decision_label
 from agent.trace import Trace
 from config import settings
+from demo.knowledge_qa import SAMPLE_QUESTIONS, ask, survey
 from demo.storyboard import Act, run_storyboard
 from insurance.carrier_client import get_provider
+from rag.retriever import get_retriever, reset_retriever
 from legacy_app import manager
 
 CASES = {
@@ -230,6 +232,70 @@ table.acttbl tr:last-child td { border-bottom: none; }
 table.acttbl tr.hit td { background: var(--tint); font-weight: 600; }
 .acttbl-cap { font-size: 12px; color: var(--ink-3); margin-top: 6px; }
 
+/* ---- 问规则：业务知识库检索 ---- */
+.vs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 4px 0 18px; }
+@media (max-width: 820px) { .vs { grid-template-columns: 1fr; } }
+.vs-col {
+  background: #fff; border: 1px solid var(--line); border-radius: 4px;
+  border-top: 3px solid var(--ink-3); padding: 16px 18px;
+}
+.vs-col.now { border-top-color: var(--brand); }
+.vs-col h4 {
+  margin: 0 0 8px; font-size: 14px; font-weight: 700; color: var(--ink-3);
+  letter-spacing: .04em;
+}
+.vs-col.now h4 { color: var(--brand); }
+.vs-col p { margin: 0; font-size: 13.5px; color: var(--ink-2); line-height: 1.9; }
+
+.kbstat {
+  display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+  background: var(--tint-2); border: 1px solid var(--line); border-radius: 4px;
+  padding: 12px 16px; margin-bottom: 14px; font-size: 13px; color: var(--ink-2);
+}
+.kbstat b { color: var(--brand); font-size: 16px; }
+.kbstat .file {
+  font-family: "IBM Plex Mono", Consolas, monospace; font-size: 12px;
+  background: #fff; border: 1px solid var(--line); border-radius: 3px; padding: 2px 8px;
+}
+
+.hit {
+  background: #fff; border: 1px solid var(--line); border-radius: 4px;
+  border-left: 3px solid var(--brand); padding: 14px 18px; margin-bottom: 10px;
+}
+.hit-head {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.hit-src {
+  font-family: "IBM Plex Mono", Consolas, monospace; font-size: 12px;
+  color: var(--brand); background: var(--tint); border-radius: 3px; padding: 2px 8px;
+}
+.hit-heading { font-size: 14px; font-weight: 700; }
+.hit-score {
+  margin-left: auto; font-size: 11.5px; color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.hit-bar { height: 3px; background: var(--line); border-radius: 2px; margin-bottom: 10px; }
+.hit-bar i { display: block; height: 100%; background: var(--brand); border-radius: 2px; }
+.hit-text {
+  font-size: 13.5px; color: var(--ink); line-height: 1.95; white-space: pre-wrap;
+  margin: 0;
+}
+.hit-text mark {
+  background: #FFF1A8; color: inherit; border-radius: 2px; padding: 0 1px;
+}
+
+.honest {
+  background: linear-gradient(90deg, var(--tint-2), #fff 70%);
+  border: 1px solid var(--line); border-left: 3px solid var(--ink-3);
+  border-radius: 4px; padding: 14px 18px; margin-top: 18px;
+}
+.honest .lbl {
+  display: block; font-size: 12px; font-weight: 700; letter-spacing: .08em;
+  color: var(--ink-3); margin-bottom: 6px;
+}
+.honest p { margin: 0; font-size: 13.5px; color: var(--ink-2); line-height: 1.9; }
+
 /* 现场取证：截图 + 候选控件表 */
 .evidence-head {
   display: flex; align-items: baseline; gap: 10px;
@@ -432,6 +498,78 @@ def _render_acts(acts: List[Act]) -> None:
         )
 
 
+def _knowledge_panel() -> None:
+    """Demo 2: ask the rule base a question in plain Chinese.
+
+    Traditional RPA turns business rules into hard-coded branches via a human
+    translation step. Here the rule *is* the document, and it answers directly.
+    """
+    st.markdown(
+        "<div class='vs'>"
+        "<div class='vs-col'><h4>传统 RPA 怎么做</h4><p>每上一个新流程，业务规则要经过一次"
+        "人肉翻译：业务人员口述 → 需求文档 → 开发理解 → 写成脚本里的 if-else。规则从此只活在"
+        "两个地方——业务人员的脑子里，和外人读不懂的代码里。中间那次翻译，就是误解的来源；"
+        "规则一改，整条链路重来一遍。</p></div>"
+        "<div class='vs-col now'><h4>这套系统怎么做</h4><p>规则就是业务人员自己写的中文文档，"
+        "系统直接读，不经过翻译。用一句话提问，秒级返回适用条款、出处文件和原文措辞。"
+        "加一条规则不用改代码，改一条规则不用重新提需求——存进去，下一次检索就能找到它。</p></div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    kb = survey()
+    files = "".join(f"<span class='file'>{f}</span>" for f in kb.files)
+    st.markdown(
+        f"<div class='kbstat'>知识库现状：<b>{len(kb.files)}</b> 个中文文档 ·"
+        f" <b>{kb.clauses}</b> 个条款 · <b>{kb.characters:,}</b> 字 {files}</div>",
+        unsafe_allow_html=True,
+    )
+
+    cols = st.columns(len(SAMPLE_QUESTIONS))
+    for i, (col, q) in enumerate(zip(cols, SAMPLE_QUESTIONS)):
+        if col.button(q, key=f"kbq{i}", use_container_width=True):
+            st.session_state["kb_input"] = q
+            st.rerun()
+
+    q1, q2 = st.columns([5, 1])
+    query = q1.text_input("用一句话问业务规则", key="kb_input",
+                          placeholder="例如：8 万元的车损案子要不要转人工核赔？")
+    if q2.button("重新加载知识库", use_container_width=True,
+                 help="清掉检索索引，重新读一遍 knowledge/ 目录。"
+                      "改完规则文档点这里，不用重启、不用改代码。"):
+        reset_retriever()
+        st.toast(f"已重新读取知识库（{survey().clauses} 个条款）")
+
+    if query:
+        hits = ask(query, k=4)
+        if not hits:
+            st.warning("没有检索到相关条款。换个说法试试，或者这条规则还没写进知识库。")
+        else:
+            st.caption(f"检索后端：`{get_retriever().name}` · 命中 {len(hits)} 条，按相关度排序")
+            top = max(h.score for h in hits) or 1.0
+            for h in hits:
+                pct = int(100 * h.score / top)
+                st.markdown(
+                    f"<div class='hit'><div class='hit-head'>"
+                    f"<span class='hit-src'>{h.source}</span>"
+                    f"<span class='hit-heading'>{h.heading}</span>"
+                    f"<span class='hit-score'>相关度 {h.score:.3f}</span></div>"
+                    f"<div class='hit-bar'><i style='width:{pct}%'></i></div>"
+                    f"<p class='hit-text'>{h.html}</p></div>",
+                    unsafe_allow_html=True,
+                )
+
+    st.markdown(
+        "<div class='honest'><span class='lbl'>说清楚边界</span>"
+        "<p>检索出来的是<b>依据</b>，不是<b>决定</b>。动钱的判断——自动核赔限额、风险评分、"
+        "能不能直通——由 <code>risk/engine.py</code> 里的确定性代码执行，"
+        "代码里的常量和文档里的措辞刻意保持一致。这样安排的理由很简单："
+        "<b>规则文档应该好改，护栏不应该好改。</b>"
+        "所以核赔员看到的每一条结论，既有代码算出的结果，也有文档里的原文可以回溯。</p></div>",
+        unsafe_allow_html=True,
+    )
+
+
 def _portal_footer() -> None:
     st.markdown(
         '<div class="portal-foot"><span>Agentic Insurance Automation Lab</span>'
@@ -564,71 +702,77 @@ def main() -> None:
     _portal_chrome(current.state.claim_id if current else "")
     _sidebar()
 
-    with st.form("run"):
-        col1, col2 = st.columns([1, 2])
-        claim_id = col1.selectbox("报案", list(CASES.keys()),
-                                  format_func=lambda k: f"{k} — {CASES[k]}")
-        task = col2.text_input("任务", value=f"处理报案 {claim_id}")
-        cb, sl = st.columns([1, 1])
-        show_browser = cb.checkbox(
-            "显示浏览器窗口（面试现场演示用）",
-            value=False,
-            help="勾选后会弹出真实浏览器窗口，你可以亲眼看着它定位控件、点击。"
-                 "需要一个完整浏览器（Edge / Chrome）；Playwright 自带的 "
-                 "chrome-headless-shell 无法有头运行。",
-        )
-        demo_pace = sl.slider(
-            "每步停顿（秒）", 0.0, 2.0, 0.8, 0.1,
-            help="仅在勾选「显示浏览器窗口」时生效。Playwright 默认全速执行，"
-                 "每步几十毫秒，人眼跟不上。0.8 秒左右适合现场讲解。",
-        )
-        b1, b2 = st.columns([1, 1])
-        submitted = b1.form_submit_button("运行 Agent", type="primary",
-                                          use_container_width=True)
-        story = b2.form_submit_button("▶ 三幕演示（面试讲解用）",
-                                      use_container_width=True,
-                                      help="不跑完整 Agent，而是把「RPA 好用 → 网页更新导致"
-                                           "取元素失败 → Agent 接手救场」这条时间线一幕一幕"
-                                           "演一遍，每幕都有真实截图和解说。")
+    tab_case, tab_rules = st.tabs(["案件处理", "问规则 · 业务知识库"])
 
-    if story:
-        claim = get_provider().get_claim(claim_id) or {}
-        with st.spinner("正在按三幕重放…（有头模式下请看弹出的浏览器窗口）"):
-            with ThreadPoolExecutor(max_workers=1) as pool:
-                manager.ensure_running()
-                st.session_state["acts"] = pool.submit(
-                    run_storyboard, claim=claim,
-                    headless=not show_browser,
-                    # Pacing exists for a human watching a real window. Headless
-                    # runs must stay fast, or "四幕演示" takes a minute for nothing.
-                    pace=demo_pace if show_browser else 0.0,
-                ).result()
-        st.session_state.pop("result", None)
+    with tab_case:
+        with st.form("run"):
+            col1, col2 = st.columns([1, 2])
+            claim_id = col1.selectbox("报案", list(CASES.keys()),
+                                      format_func=lambda k: f"{k} — {CASES[k]}")
+            task = col2.text_input("任务", value=f"处理报案 {claim_id}")
+            cb, sl = st.columns([1, 1])
+            show_browser = cb.checkbox(
+                "显示浏览器窗口（面试现场演示用）",
+                value=False,
+                help="勾选后会弹出真实浏览器窗口，你可以亲眼看着它定位控件、点击。"
+                     "需要一个完整浏览器（Edge / Chrome）；Playwright 自带的 "
+                     "chrome-headless-shell 无法有头运行。",
+            )
+            demo_pace = sl.slider(
+                "每步停顿（秒）", 0.0, 2.0, 0.8, 0.1,
+                help="仅在勾选「显示浏览器窗口」时生效。Playwright 默认全速执行，"
+                     "每步几十毫秒，人眼跟不上。0.8 秒左右适合现场讲解。",
+            )
+            b1, b2 = st.columns([1, 1])
+            submitted = b1.form_submit_button("运行 Agent", type="primary",
+                                              use_container_width=True)
+            story = b2.form_submit_button("▶ 三幕演示（面试讲解用）",
+                                          use_container_width=True,
+                                          help="不跑完整 Agent，而是把「RPA 好用 → 网页更新导致"
+                                               "取元素失败 → Agent 接手救场」这条时间线一幕一幕"
+                                               "演一遍，每幕都有真实截图和解说。")
 
-    if submitted:
-        st.session_state.pop("acts", None)
-        state = AgentState(
-            task=task or f"处理报案 {claim_id}",
-            claim_id=claim_id,
-            show_browser=show_browser,
-            demo_pace=demo_pace,
-        )
-        with st.spinner("Agent 处理中…"):
-            st.session_state["result"] = _run(state, Trace())
+        if story:
+            claim = get_provider().get_claim(claim_id) or {}
+            with st.spinner("正在按三幕重放…（有头模式下请看弹出的浏览器窗口）"):
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    manager.ensure_running()
+                    st.session_state["acts"] = pool.submit(
+                        run_storyboard, claim=claim,
+                        headless=not show_browser,
+                        # Pacing exists for a human watching a real window. Headless
+                        # runs must stay fast, or "四幕演示" takes a minute for nothing.
+                        pace=demo_pace if show_browser else 0.0,
+                    ).result()
+            st.session_state.pop("result", None)
 
-    if "acts" in st.session_state:
-        st.markdown(
-            "### 一次网页改版，从头到尾发生的全部事情\n"
-            "下面的截图都来自刚刚这次真实运行，不是示意图；"
-            "整场只开了一个浏览器、一个标签页。"
-        )
-        _render_acts(st.session_state["acts"])
-    elif "result" in st.session_state:
-        _render_result(st.session_state["result"])
-    else:
-        st.info("选择一笔报案并点击 **运行 Agent**。"
-                "BX-2024-0001 = 快速直通 · BX-2024-0002 = 转人工核赔 · "
-                "BX-2024-0003 = 查验平台改版后的 RPA 中断与自愈。")
+        if submitted:
+            st.session_state.pop("acts", None)
+            state = AgentState(
+                task=task or f"处理报案 {claim_id}",
+                claim_id=claim_id,
+                show_browser=show_browser,
+                demo_pace=demo_pace,
+            )
+            with st.spinner("Agent 处理中…"):
+                st.session_state["result"] = _run(state, Trace())
+
+        if "acts" in st.session_state:
+            st.markdown(
+                "### 一次网页改版，从头到尾发生的全部事情\n"
+                "下面的截图都来自刚刚这次真实运行，不是示意图；"
+                "整场只开了一个浏览器、一个标签页。"
+            )
+            _render_acts(st.session_state["acts"])
+        elif "result" in st.session_state:
+            _render_result(st.session_state["result"])
+        else:
+            st.info("选择一笔报案并点击 **运行 Agent**。"
+                    "BX-2024-0001 = 快速直通 · BX-2024-0002 = 转人工核赔 · "
+                    "BX-2024-0003 = 查验平台改版后的 RPA 中断与自愈。")
+
+    with tab_rules:
+        _knowledge_panel()
 
     _portal_footer()
 

@@ -153,3 +153,15 @@ def get_retriever() -> Retriever:
     if _RETRIEVER_SINGLETON is None:
         _RETRIEVER_SINGLETON = LexicalRetriever()
     return _RETRIEVER_SINGLETON
+
+
+def reset_retriever() -> None:
+    """Drop the cached index so the next search re-reads ``knowledge/``.
+
+    The knowledge base is a folder of Chinese Markdown the business side owns.
+    Editing a rule and having the system pick it up **without a code change or a
+    restart** is the point of keeping rules in documents rather than in ``if``
+    statements, so the demo needs a way to prove it.
+    """
+    global _RETRIEVER_SINGLETON
+    _RETRIEVER_SINGLETON = None
