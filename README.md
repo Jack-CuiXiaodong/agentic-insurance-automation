@@ -31,6 +31,57 @@ flowchart TD
     H --> G[高风险动作的治理闸门]
 ```
 
+---
+
+## 先看这个 · 一次真实运行，从头到尾
+
+整场只开了**一个浏览器、一个标签页**。页面在机器人脚下改版，它当场崩掉，
+然后 Agent 就地把断掉的流程接了回去——中间没有重来一次。
+下面四张截图全部来自这次运行，不是效果图，也不是分镜。
+
+<table>
+<tr>
+<td width="50%"><b>① 传统 RPA 正常工作</b><br><br>
+<img src="docs/screenshots/act1_rpa_ok.png" alt="改版前，「查验」按钮被红框标出">
+<br><sub>录制时记下的「查验」按钮——红框就是 RPA 定位到的元素</sub></td>
+<td width="50%"><b>② 网页系统更新，RPA 获取元素失败</b><br><br>
+<img src="docs/screenshots/act2_rpa_broken.png" alt="改版后，原按钮已不存在">
+<br><sub>改版后的新页面——<code>#verify-invoice-btn</code> 匹配到 0 个，流程停在这里</sub></td>
+</tr>
+<tr>
+<td><b>③ Agent 就地接手</b><br><br>
+<img src="docs/screenshots/act3_agent_picks.png" alt="Agent 语义锁定的控件被红框标出">
+<br><sub>读实时 DOM、按意图打分、用 <code>role=button</code> + 可访问名称定位——红框是它自己找回来的</sub></td>
+<td><b>④ 断掉的流程接上了</b><br><br>
+<img src="docs/screenshots/act3_agent_done.png" alt="查验一致">
+<br><sub>查验一致，全程零人工介入</sub></td>
+</tr>
+</table>
+
+**改版只动了按钮怎么称呼自己**——字段名、表单提交地址、页面结构全都没变，
+接口层面看不出任何异样。而这恰恰是写死选择器的机器人唯一认得的东西：
+
+| 项目 | 改版前 v1 | 改版后 v2 |
+|---|---|---|
+| 主按钮文案 | 查验 | **查验发票信息** |
+| 主按钮 id | `#verify-invoice-btn` | **`#check-invoice-btn`** |
+| 表单字段名 | `invoice_code / invoice_no / amount` | 完全一致 |
+| 表单提交地址 | `POST /verify` | 完全一致 |
+
+> **Agent 没有猜，也没有用坐标。** 它读取实时 DOM，枚举页面上所有可操作控件，
+> 按意图关键词打分（「查验发票信息」11 分，「重置」0 分），选出最高的那个，
+> 再用 `role=button` + 可访问名称去定位。
+>
+> 定位锚在「人怎么读这个按钮」上，而不是「开发当时怎么命名它」上：
+> id 和 class 可以随便改，按钮上写给人看的那几个字不会——一变，用户就不认识这个页面了。
+
+在界面里点 **「▶ 三幕演示」** 可以自己跑一遍；勾上「显示浏览器窗口」还能
+亲眼看着它慢动作定位、点击。
+
+---
+
+### 界面总览
+
 | | |
 |---|---|
 | ![案例1](docs/screenshots/ui_case1.png) | ![案例3](docs/screenshots/ui_case3_recovery.png) |
