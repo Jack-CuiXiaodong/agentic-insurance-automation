@@ -24,12 +24,13 @@ from insurance.carrier_client import get_provider
 from rag.retriever import get_retriever, reset_retriever
 from legacy_app import manager
 
-# 下拉框按「这个案例演示什么」命名，而不是按报案号。报案号是系统内部标识，
-# 对看演示的人没有意义，只会先让人分神去猜 BX-2024-0003 是什么。
+# 这三个**不是三个 demo**，是同一条理赔流水线的三种路由结果。以前把它们编号成
+# 「案例 1/2/3」，和「Demo 1/2」撞车，看的人会以为选不同案例能看到不同的 demo——
+# 而三幕演示演的永远是同一个故事。按结果命名就不会有这个误会。
 CASES = {
-    "BX-2024-0003": "案例 1 · Agent 获取元素 —— 网页改版后自己找回控件",
-    "BX-2024-0001": "案例 2 · 快速理赔直通 —— 小额、低风险",
-    "BX-2024-0002": "案例 3 · 转人工核赔 —— 金额超限，代码级闸门",
+    "BX-2024-0001": "直通 —— 小额低风险，自动核赔",
+    "BX-2024-0002": "闸门 —— 金额超限，转人工核赔",
+    "BX-2024-0003": "自愈 —— 网页改版，RPA 中断后 Agent 接手",
 }
 
 # --------------------------------------------------------------------------
@@ -37,6 +38,9 @@ CASES = {
 # 主色 #4B76FC · 深蓝 #3D38FD · 画布 #EDEFF1 · 卡片 #FFFFFF
 # --------------------------------------------------------------------------
 BRAND = "#4B76FC"
+
+# 三幕演示讲的固定是这一笔：查验平台改版、RPA 中断、Agent 接手。
+RECOVERY_CLAIM = "BX-2024-0003"
 
 PORTAL_CSS = """
 <style>
@@ -234,6 +238,14 @@ table.acttbl tr:last-child td { border-bottom: none; }
 table.acttbl tr.hit td { background: var(--tint); font-weight: 600; }
 .acttbl-cap { font-size: 12px; color: var(--ink-3); margin-top: 6px; }
 
+.demo-lead {
+  background: var(--tint-2); border: 1px solid var(--line);
+  border-left: 3px solid var(--brand); border-radius: 4px;
+  padding: 13px 18px; margin-bottom: 14px;
+  font-size: 14px; color: var(--ink-2); line-height: 1.9;
+}
+.demo-lead b { color: var(--ink); }
+
 /* ---- 问规则：业务知识库检索 ---- */
 .vs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 4px 0 18px; }
 @media (max-width: 820px) { .vs { grid-template-columns: 1fr; } }
@@ -359,7 +371,7 @@ table.evidence td.score { text-align: right; font-variant-numeric: tabular-nums;
 """
 
 
-def _portal_chrome(claim_id: str = "") -> None:
+def _portal_chrome() -> None:
     """顶部蓝条 + 面包屑，复刻保险门户「服务大厅」的页面框架。"""
     st.markdown(PORTAL_CSS, unsafe_allow_html=True)
     st.markdown(
@@ -374,7 +386,7 @@ def _portal_chrome(claim_id: str = "") -> None:
         "</div></div>",
         unsafe_allow_html=True,
     )
-    live = f"● {CASES.get(claim_id, '').split(' —— ')[0]}" if claim_id else "● 系统正常运行"
+    live = "● 两个 demo · 全合成数据 · 本地可复现"
     st.markdown(
         '<div class="crumb">⌂ 首页 <span class="sep">&gt;</span> 服务大厅 '
         '<span class="sep">&gt;</span> <strong>理赔自动化演示</strong>'
@@ -700,83 +712,89 @@ def _resume(decision: str) -> None:
 
 def main() -> None:
     st.set_page_config(page_title="车险理赔 Agent 自动化实验台", page_icon="🚗", layout="wide")
-    current = st.session_state.get("result")
-    _portal_chrome(current.state.claim_id if current else "")
+    _portal_chrome()
     _sidebar()
 
-    tab_case, tab_rules = st.tabs(["案件处理", "问规则 · 业务知识库"])
+    # 两个标签页 = 两个 demo，和 GitHub Pages 上那页一一对应。
+    tab1, tab2 = st.tabs(["Demo 1 · Agent 获取元素", "Demo 2 · 业务知识库"])
 
-    with tab_case:
-        with st.form("run"):
-            col1, col2 = st.columns([1, 2])
-            claim_id = col1.selectbox("选择演示案例", list(CASES.keys()),
-                                      format_func=lambda k: CASES[k])
-            task = col2.text_input("交给 Agent 的任务", value="处理这笔车险理赔报案")
-            cb, sl = st.columns([1, 1])
-            show_browser = cb.checkbox(
-                "显示浏览器窗口（面试现场演示用）",
-                value=False,
-                help="勾选后会弹出真实浏览器窗口，你可以亲眼看着它定位控件、点击。"
-                     "需要一个完整浏览器（Edge / Chrome）；Playwright 自带的 "
-                     "chrome-headless-shell 无法有头运行。",
-            )
-            demo_pace = sl.slider(
-                "每步停顿（秒）", 0.0, 2.0, 0.8, 0.1,
-                help="仅在勾选「显示浏览器窗口」时生效。Playwright 默认全速执行，"
-                     "每步几十毫秒，人眼跟不上。0.8 秒左右适合现场讲解。",
-            )
-            b1, b2 = st.columns([1, 1])
-            submitted = b1.form_submit_button("运行 Agent", type="primary",
-                                              use_container_width=True)
-            story = b2.form_submit_button("▶ 三幕演示（面试讲解用）",
-                                          use_container_width=True,
-                                          help="不跑完整 Agent，而是把「RPA 好用 → 网页更新导致"
-                                               "取元素失败 → Agent 接手救场」这条时间线一幕一幕"
-                                               "演一遍，每幕都有真实截图和解说。")
+    with tab1:
+        _demo_element_recovery()
 
-        if story:
-            claim = get_provider().get_claim(claim_id) or {}
-            with st.spinner("正在按三幕重放…（有头模式下请看弹出的浏览器窗口）"):
-                with ThreadPoolExecutor(max_workers=1) as pool:
-                    manager.ensure_running()
-                    st.session_state["acts"] = pool.submit(
-                        run_storyboard, claim=claim,
-                        headless=not show_browser,
-                        # Pacing exists for a human watching a real window. Headless
-                        # runs must stay fast, or "四幕演示" takes a minute for nothing.
-                        pace=demo_pace if show_browser else 0.0,
-                    ).result()
-            st.session_state.pop("result", None)
-
-        if submitted:
-            st.session_state.pop("acts", None)
-            state = AgentState(
-                task=task or f"处理报案 {claim_id}",
-                claim_id=claim_id,
-                show_browser=show_browser,
-                demo_pace=demo_pace,
-            )
-            with st.spinner("Agent 处理中…"):
-                st.session_state["result"] = _run(state, Trace())
-
-        if "acts" in st.session_state:
-            st.markdown(
-                "### 一次网页改版，从头到尾发生的全部事情\n"
-                "下面的截图都来自刚刚这次真实运行，不是示意图；"
-                "整场只开了一个浏览器、一个标签页。"
-            )
-            _render_acts(st.session_state["acts"])
-        elif "result" in st.session_state:
-            _render_result(st.session_state["result"])
-        else:
-            st.info("选一个案例，点 **▶ 三幕演示** 看 Agent 在网页改版后自己找回控件；"
-                    "或点 **运行 Agent** 跑完整流程：取数 → 检索业务规则 → 风险评分 → "
-                    "执行 → 必要时转人工核赔。")
-
-    with tab_rules:
+    with tab2:
         _knowledge_panel()
 
     _portal_footer()
+
+
+def _demo_element_recovery() -> None:
+    """Demo 1: the storyboard, plus the full pipeline as a secondary exhibit."""
+    st.markdown(
+        "<div class='demo-lead'><b>网页改版了，写死选择器的机器人当场瘫痪，怎么办？</b>"
+        "下面这段演示只讲这一件事，和选哪笔报案无关——它演的永远是同一个故事："
+        "RPA 好用 → 网页更新导致取元素失败 → Agent 就地接手。</div>",
+        unsafe_allow_html=True,
+    )
+
+    with st.form("story"):
+        cb, sl = st.columns([1, 1])
+        show_browser = cb.checkbox(
+            "显示浏览器窗口（面试现场演示用）", value=False,
+            help="勾选后会弹出真实浏览器窗口，你可以亲眼看着它定位控件、点击。"
+                 "需要一个完整浏览器（Edge / Chrome）；Playwright 自带的 "
+                 "chrome-headless-shell 无法有头运行。",
+        )
+        pace = sl.slider(
+            "每步停顿（秒）", 0.0, 2.0, 0.8, 0.1,
+            help="仅在勾选「显示浏览器窗口」时生效。Playwright 默认全速执行，"
+                 "每步几十毫秒，人眼跟不上。0.8 秒左右适合现场讲解。",
+        )
+        go = st.form_submit_button("▶ 播放演示", type="primary")
+
+    if go:
+        with st.spinner("正在重放…（有头模式下请看弹出的浏览器窗口）"):
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                manager.ensure_running()
+                st.session_state["acts"] = pool.submit(
+                    run_storyboard,
+                    claim=get_provider().get_claim(RECOVERY_CLAIM) or {},
+                    headless=not show_browser,
+                    # Pacing serves a human watching a real window. Headless must
+                    # stay fast, or the demo takes a minute for nothing.
+                    pace=pace if show_browser else 0.0,
+                ).result()
+
+    if "acts" in st.session_state:
+        _render_acts(st.session_state["acts"])
+    else:
+        st.info("点 **▶ 播放演示**。约 3 秒跑完；勾上「显示浏览器窗口」会慢放到十几秒，"
+                "可以边讲边看。")
+
+    # ------------------------------------------------------------------
+    # 完整流水线：刻意放在演示下面，并且说清楚它不是「第三个 demo」。
+    st.divider()
+    st.markdown(
+        "#### 想看完整流程？\n\n"
+        "上面的演示只截取了「取元素」这一段。整条流水线是："
+        "取报案与保单 → RAG 检索业务规则 → 确定性风险评分 → 决定路由 → "
+        "执行 RPA / 浏览器自愈 / 转人工。下面三个选项**不是三个 demo**，"
+        "是同一条流水线走出的三种结果。"
+    )
+    with st.form("pipeline"):
+        c1, c2 = st.columns([2, 1])
+        claim_id = c1.selectbox("路由结果", list(CASES.keys()),
+                                format_func=lambda k: CASES[k])
+        c2.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+        run = c2.form_submit_button("运行 Agent", use_container_width=True)
+
+    if run:
+        st.session_state.pop("acts", None)
+        state = AgentState(task="处理这笔车险理赔报案", claim_id=claim_id)
+        with st.spinner("Agent 处理中…"):
+            st.session_state["result"] = _run(state, Trace())
+
+    if "result" in st.session_state:
+        _render_result(st.session_state["result"])
 
 
 if __name__ == "__main__":
