@@ -41,8 +41,8 @@ def _execution_step(state: AgentState) -> Tuple[Optional[str], str]:
     if rpa.get("success"):
         return None, "RPA 已成功 —— 无后续动作"
     # RPA failed.
-    if rpa.get("message", "").lower().find("browser unavailable") != -1 or "Browser is not" in rpa.get("message", ""):
-        # Recovery also needs a browser; can't recover.
+    if rpa.get("browser_unavailable"):
+        # Recovery drives the same browser, so it cannot help here.
         return None, "RPA 失败且浏览器不可用 —— 无法自愈"
     if state.recovery_result is None:
         return "browser_recover", "RPA 选择器失效 → 启动 Playwright 自适应自愈"

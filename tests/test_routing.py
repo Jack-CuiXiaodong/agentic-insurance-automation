@@ -42,6 +42,20 @@ def test_rpa_failure_routes_to_browser_recovery():
     assert choose_next_tool(s)[0] == "browser_recover"
 
 
+def test_no_browser_at_all_does_not_attempt_recovery():
+    """Recovery drives the same browser, so with no browser there is nothing to
+    try. The router must read the explicit flag -- an earlier version matched on
+    message text that the driver never actually produces, so this branch was
+    dead and the agent burned a step on a doomed recovery."""
+    s = _loaded("AUTO_PROCESS")
+    s.rpa_result = {
+        "success": False,
+        "message": "Playwright is not installed. Run: pip install playwright",
+        "browser_unavailable": True,
+    }
+    assert choose_next_tool(s)[0] is None
+
+
 def test_success_ends_run():
     s = _loaded("AUTO_PROCESS")
     s.rpa_result = {"success": True}

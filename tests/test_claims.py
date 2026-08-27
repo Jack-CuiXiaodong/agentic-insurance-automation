@@ -63,3 +63,31 @@ def test_claim_id_is_parsed_from_a_chinese_task_line():
 
     assert parse_claim_id("处理报案 BX-2024-0003") == "BX-2024-0003"
     assert parse_claim_id("没有报案号") == ""
+
+
+def test_rpa_tool_records_browser_unavailable_on_the_state():
+    """The router decides on state.rpa_result, so the tool has to put the reason
+    there -- not only in its return value, which is what previously left the
+    router guessing from message text."""
+    import tools.rpa_tools as rpa_tools
+    from agent.state import AgentState
+    from agent.trace import Trace
+    from browser.driver import BrowserUnavailable
+
+    class _NoBrowser:
+        name = "no-browser"
+
+        def execute_workflow(self, workflow_name, parameters):
+            raise BrowserUnavailable("Playwright is not installed.")
+
+    original = rpa_tools._adapter
+    rpa_tools._adapter = _NoBrowser()
+    try:
+        state = AgentState(task="t", claim_id="BX-2024-0001")
+        state.claim = {"claim_id": "BX-2024-0001", "amount": 3800}
+        rpa_tools.execute_rpa(state, Trace())
+    finally:
+        rpa_tools._adapter = original
+
+    assert state.rpa_result["browser_unavailable"] is True
+    assert state.rpa_result["success"] is False

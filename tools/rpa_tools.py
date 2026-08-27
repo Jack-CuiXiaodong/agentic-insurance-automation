@@ -35,7 +35,16 @@ def execute_rpa(state: AgentState, trace: Trace) -> Dict[str, Any]:
         trace.ok(f"RPA 执行完成（{result.details.get('result_status')}）")
         return {"success": True, "result": result.as_dict()}
     except BrowserUnavailable as exc:
-        state.rpa_result = {"success": False, "workflow": WORKFLOW, "message": str(exc)}
+        # Record *why* it failed as a flag, not just in the message: the router
+        # has to tell "the selector broke, try recovering" apart from "there is
+        # no browser at all, recovery cannot help either", and matching on
+        # message text silently stops working the moment that text is reworded.
+        state.rpa_result = {
+            "success": False,
+            "workflow": WORKFLOW,
+            "message": str(exc),
+            "browser_unavailable": True,
+        }
         trace.fail(f"浏览器不可用：{exc}")
         return {"success": False, "error": str(exc), "browser_unavailable": True}
     except RPAExecutionError as exc:
