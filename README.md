@@ -5,9 +5,15 @@
 > **不是取代 RPA，而是给 RPA 装上大脑。**
 > *Don't replace RPA. Orchestrate it.*
 
-**[▶ 在线演示 / Live walkthrough](https://jack-cuixiaodong.github.io/agentic-insurance-automation/)** ——
-一次真实运行的完整记录：传统 RPA 在发票查验平台改版当天当场瘫痪，本项目的 Agent
-读取页面语义、自己找回按钮、把流程跑完。页面上的执行轨迹是终端里原样拷出来的，不是效果图。
+**[▶ 在线演示 / Live demo](https://jack-cuixiaodong.github.io/agentic-insurance-automation/)**
+　·　全部本地运行 · 全合成数据 · **无需任何 API Key**
+
+两个 demo，各回答一个传统 RPA 回答不了的问题：
+
+| | 问题 | 这里怎么解 |
+|---|---|---|
+| **Demo 1**<br>Agent 获取元素 | 网页改版了，写死选择器的机器人当场瘫痪，怎么办？ | Agent 读实时 DOM、按语义找回控件，**在同一张让 RPA 崩掉的页面上**就地续跑 |
+| **Demo 2**<br>业务知识库 | 每上一个新流程都要重新提需求、人肉翻译业务逻辑，怎么办？ | 规则就是业务人员写的中文文档，系统直接读。一句话提问，秒回条款、出处与原文 |
 
 一个独立、自包含的技术验证：AI Agent 如何编排**保险公司业务数据、RAG 业务规则检索、
 传统 RPA、自适应浏览器自动化、以及人工核赔**，跑通一条合成的车险理赔流水线。
@@ -311,7 +317,15 @@ cp .env.example .env
 streamlit run app.py      # 或：python app.py
 ```
 
-选一笔报案，点 **运行 Agent**。查验平台会自动拉起。单独运行它：`python legacy_app/app.py`。
+选一个案例，点 **▶ 三幕演示** 看 Agent 在网页改版后自己找回控件，或点 **运行 Agent**
+跑完整流程。切到 **问规则** 标签页可以用一句中文查业务规则。
+查验平台会自动拉起，单独运行它：`python legacy_app/app.py`。
+
+> **`playwright install chromium` 拉不动？** 它要从境外 CDN 下 100 多 MB，国内经常失败。
+> 跑一次 `python fix_browser.py`：它会检测 Playwright 自带的 Chromium 能不能用，
+> 不行就去找机器上已有的 Edge / Chrome，能用就自动写进 `.env`（`PLAYWRIGHT_CHROMIUM_PATH`）。
+> Edge 本身就是 Chromium 内核，Playwright 可以直接驱动，一个字节都不用下。
+> 案例 2、3 不需要浏览器；只有 Demo 1 的浏览器自愈需要。
 
 ```bash
 # 测试（不需要浏览器 —— 38 条）
