@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from agent.state import AgentState
+from agent.state import AgentState, decision_label
 from agent.trace import Trace
 from risk.engine import assess_risk, decide
 
@@ -26,8 +26,8 @@ def calculate_risk(state: AgentState, trace: Trace) -> Dict[str, Any]:
     state.decision = decision["decision"]
     state.record_tool("calculate_risk")
 
-    trace.add(f"Risk score: {risk['risk_score']}/100 ({risk['risk_level']})")
-    marker_msg = f"Decision: {decision['decision']}"
+    trace.add(f"风险评分：{risk['risk_score']}/100（{risk['risk_level_label']}风险）")
+    marker_msg = f"核赔结论：{decision_label(decision['decision'])}"
     if decision["decision"] == "AUTO_PROCESS":
         trace.ok(marker_msg)
     else:

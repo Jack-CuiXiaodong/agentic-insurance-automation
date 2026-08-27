@@ -47,46 +47,46 @@ def _obj(props: Dict[str, Any] | None = None, required: List[str] | None = None)
 TOOLS: Dict[str, Tool] = {
     "get_claim": Tool(
         "get_claim", insurance_tools.get_claim,
-        "Retrieve a claim record by claim_id from the insurance backend.",
-        _obj({"claim_id": {"type": "string", "description": "Claim id, e.g. CLM-001"}}),
+        "按报案号从保司系统读取车险报案记录。",
+        _obj({"claim_id": {"type": "string", "description": "报案号，例如 BX-2024-0001"}}),
     ),
     "get_policy": Tool(
         "get_policy", insurance_tools.get_policy,
-        "Retrieve the policy for the current claim (or an explicit policy_id).",
+        "读取当前报案对应的保单（或指定 policy_id 的保单）。",
         _obj({"policy_id": {"type": "string"}}),
     ),
     "get_claim_history": Tool(
         "get_claim_history", insurance_tools.get_claim_history,
-        "Retrieve prior claim history for the policy (used in risk assessment).",
+        "读取该保单的历史出险记录（用于风险评估）。",
         _obj({"policy_id": {"type": "string"}}),
     ),
     "search_rules": Tool(
         "search_rules", rag_tools.search_rules,
-        "RAG: retrieve relevant business-rule evidence from the knowledge base.",
-        _obj({"query": {"type": "string", "description": "What rules to look up"}}),
+        "RAG：从知识库检索适用的业务规则依据。",
+        _obj({"query": {"type": "string", "description": "要检索什么规则"}}),
     ),
     "calculate_risk": Tool(
         "calculate_risk", risk_tools.calculate_risk,
-        "Deterministically compute risk score/level and the routing decision "
-        "(AUTO_PROCESS / HUMAN_REVIEW / REJECT). Call after claim, policy and rules are loaded.",
+        "确定性地计算风险评分/等级与核赔结论"
+        "（AUTO_PROCESS 自动核赔 / HUMAN_REVIEW 人工核赔 / REJECT 拒赔）。"
+        "需在报案、保单、规则都已加载后调用。",
         _obj(),
     ),
     "execute_rpa": Tool(
         "execute_rpa", rpa_tools.execute_rpa,
-        "Execute the deterministic RPA workflow against the legacy claim system. "
-        "Use for AUTO_PROCESS claims, or after a human APPROVE.",
+        "在增值税发票查验平台上执行确定性 RPA 流程，查验维修发票真伪。"
+        "用于 AUTO_PROCESS 的报案，或核赔员 APPROVE 之后。",
         _obj(),
     ),
     "browser_recover": Tool(
         "browser_recover", browser_tools.browser_recover,
-        "Adaptive Playwright recovery. Use ONLY after execute_rpa failed due to a "
-        "changed/broken UI selector.",
+        "Playwright 自适应自愈。仅在 execute_rpa 因页面改版/选择器失效而失败后使用。",
         _obj(),
     ),
     "request_human_approval": Tool(
         "request_human_approval", human_tools.request_human_approval,
-        "Pause and request explicit human approval. Use for HUMAN_REVIEW decisions. "
-        "Do NOT proceed to execute_rpa until a human has approved.",
+        "暂停并请求核赔员明确审批。用于 HUMAN_REVIEW 结论。"
+        "在核赔员通过之前，不得继续调用 execute_rpa。",
         _obj(),
     ),
 }

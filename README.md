@@ -1,351 +1,333 @@
-# Agentic Insurance Automation Lab
+# 车险理赔 Agent 自动化实验台
 
-### From Traditional RPA to Agentic Automation
+### Agentic Insurance Automation Lab — From Traditional RPA to Agentic Automation
 
-> **Don't replace RPA. Orchestrate it.**
+> **不是取代 RPA，而是给 RPA 装上大脑。**
+> *Don't replace RPA. Orchestrate it.*
 
-**[▶ Live walkthrough](https://jack-cuixiaodong.github.io/agentic-insurance-automation/)** — a real captured
-run showing traditional RPA break the moment a legacy screen changes, and this
-agent recover from it automatically. Not a mockup: the trace on that page is
-copied verbatim from an actual run of Case 3 below.
+**[▶ 在线演示 / Live walkthrough](https://jack-cuixiaodong.github.io/agentic-insurance-automation/)** ——
+一次真实运行的完整记录：传统 RPA 在发票查验平台改版当天当场瘫痪，本项目的 Agent
+读取页面语义、自己找回按钮、把流程跑完。页面上的执行轨迹是终端里原样拷出来的，不是效果图。
 
-An independent, self-contained proof-of-concept showing how an AI Agent can
-orchestrate **insurance APIs, retrieval-augmented business knowledge (RAG),
-traditional RPA, adaptive browser automation, and human approval** across a
-synthetic insurance-claims workflow.
+一个独立、自包含的技术验证：AI Agent 如何编排**保司业务数据、RAG 业务规则检索、
+传统 RPA、自适应浏览器自动化、以及人工核赔**，跑通一条合成的车险理赔流水线。
 
-The point is *not* that AI replaces RPA. It's the opposite: when a carrier has
-already invested heavily in deterministic RPA, the highest-leverage move is to
-put an intelligent **orchestration layer** on top of it — one that understands,
-plans, retrieves the governing rules, routes to the right execution tool, and
-recovers when a brittle automation breaks.
+论点不是"AI 取代 RPA"，恰恰相反：当一家保司已经在确定性 RPA 上投入很深时，
+最高杠杆的做法是在它**上面**加一层智能编排层——能理解、能规划、能检索出决策依据、
+能路由到正确的执行工具，并且在脆弱的自动化断掉时自己想办法。
 
 ```mermaid
 flowchart TD
-    A[AI Agent · Orchestrator]
-    A --> API[Insurance API]
-    A --> RAG[RAG · Business rules]
-    A --> RPA[RPA · Legacy systems]
-    A --> BR[Browser · Playwright]
-    A --> H[Human approval]
-    API --> M[Modern systems]
-    RAG --> KB[Knowledge base]
-    RPA --> L[Legacy web app]
-    BR --> R[Adaptive recovery]
-    H --> G[Governance on high-risk actions]
+    A[AI Agent · 编排层]
+    A --> API[保司数据接口]
+    A --> RAG[RAG · 业务规则]
+    A --> RPA[RPA · 存量自动化]
+    A --> BR[浏览器 · Playwright]
+    A --> H[人工核赔]
+    API --> M[核心业务系统]
+    RAG --> KB[中文规则知识库]
+    RPA --> L[发票查验平台]
+    BR --> R[自适应自愈]
+    H --> G[高风险动作的治理闸门]
 ```
 
 | | |
 |---|---|
-| ![Straight-through](docs/screenshots/ui_case1.png) | ![Recovery](docs/screenshots/ui_case3_recovery.png) |
-| **Case 1** — low-risk claim runs straight through RPA | **Case 3** — RPA breaks on a changed UI, the agent recovers |
+| ![案例1](docs/screenshots/ui_case1.png) | ![案例3](docs/screenshots/ui_case3_recovery.png) |
+| **案例 1** — 小额低风险，快速理赔直通 | **案例 3** — 查验平台改版，RPA 断了，Agent 自愈 |
 
 ---
 
-## 1. Project Overview
+## 1. 项目概览 · Overview
 
-The app is a single Streamlit UI: **Insurance Claim Triage & Automation**. You
-enter a claim id (or `Process claim CLM-001`), and a lightweight tool-calling
-agent retrieves the claim and policy, pulls the governing rules from a knowledge
-base, computes a **deterministic** risk score and decision, and then selects and
-executes the right tool — RPA, browser recovery, or a human approval gate.
+一个 Streamlit 单页应用：**车险理赔智能分流与自动化**。输入一个报案号（或直接说
+`处理报案 BX-2024-0001`），一个轻量的 tool-calling Agent 会取出报案与保单、从知识库
+检索适用的业务规则、用**确定性**引擎算出风险分和核赔结论，然后选择并执行正确的工具
+——RPA 发票查验、浏览器自愈，或者人工核赔闸门。
 
-Everything runs locally with **synthetic data**. It needs **no API key** to run
-(a deterministic backend drives the identical agent loop), and it needs **no
-proprietary system**.
+全部本地运行、**全合成数据**、**不需要任何 API Key**（内置确定性后端驱动完全相同的
+Agent 循环）、**不依赖任何专有系统**。
 
-## 2. Why Agentic Automation?
+## 2. 为什么需要 Agentic 自动化
 
-Traditional RPA is superb at what it is designed for:
+传统 RPA 在它被设计的场景里非常好用：
 
 ```
-fixed process  ->  fixed rules  ->  fixed selectors  ->  execute
+固定流程  ->  固定规则  ->  固定选择器  ->  执行
 ```
 
-It becomes brittle the moment it meets unstructured information, changing
-business rules, a UI that shifts, an exception path, or a decision that needs
-context. Agentic automation keeps RPA for what it's good at and adds a reasoning
-layer around it:
+一旦遇到非结构化信息、变化的业务规则、改版的页面、异常分支，或者需要上下文才能做的
+判断，它就会变脆。Agentic 自动化保留 RPA 擅长的部分，在外面套一层推理：
 
-| Layer | Responsibility |
-|-------|----------------|
-| **AI Agent** | understand, plan, select tools, handle exceptions |
-| **RAG** | retrieve the business rules that justify a decision |
-| **API** | direct, structured access to modern systems |
-| **RPA** | deterministic, repeatable operations on legacy systems |
-| **Playwright** | adaptive browser automation & recovery when RPA breaks |
-| **Human** | approval/governance for high-risk or ambiguous cases |
+| 层 | 职责 |
+|-------|------|
+| **AI Agent** | 理解、规划、选工具、处理异常 |
+| **RAG** | 检索出支撑这个结论的业务规则原文 |
+| **数据接口** | 结构化访问核心业务系统 |
+| **RPA** | 对存量系统做确定性、可重复的操作 |
+| **Playwright** | 自适应浏览器自动化；RPA 断了之后接管 |
+| **人工** | 高金额 / 高风险案件的审批与治理 |
 
-> **Playwright does not replace RPA. It complements RPA when deterministic
-> automation becomes brittle.**
+> **Playwright 不是用来取代 RPA 的。它是在确定性自动化变脆时补位的。**
 
-## 3. Architecture
+## 3. 架构 · Architecture
 
 ```mermaid
 flowchart TD
-    U[User: "Process claim CLM-001"] --> AG
+    U[用户：处理报案 BX-2024-0001] --> AG
 
     subgraph AG[AI Agent]
-      P[Plan / Reason] --> TR[Tool Router]
+      P[规划 / 推理] --> TR[工具路由]
     end
 
-    TR -->|data| API[Insurance API tools]
-    TR -->|rules| RAG[RAG retriever]
-    TR -->|score & decision| RISK[Deterministic risk engine]
-    TR -->|deterministic exec| RPA[RPA adapter]
-    TR -->|adaptive recovery| PW[Playwright recovery]
-    TR -->|high risk / high value| HUM[Human approval]
+    TR -->|取数| API[保司数据工具]
+    TR -->|规则| RAG[RAG 检索器]
+    TR -->|评分与结论| RISK[确定性风险引擎]
+    TR -->|确定性执行| RPA[RPA 适配器]
+    TR -->|自适应自愈| PW[Playwright 自愈]
+    TR -->|超限额 / 高风险| HUM[人工核赔]
 
-    API --> BE[(Insurance backend: mock / Facio)]
-    RAG --> KB[(knowledge/*.md)]
-    RPA --> LEG[Legacy web app]
+    API --> BE[(保司后端：mock / 核心系统)]
+    RAG --> KB[(knowledge/*.md 中文规则)]
+    RPA --> LEG[发票查验平台]
     PW --> LEG
-    RPA -. selector broke .-> PW
+    RPA -. 选择器失效 .-> PW
 ```
 
-The agent loop is deliberately small and backend-agnostic. Each step, the active
-LLM backend is shown the task plus a structured snapshot of state and the tool
-catalogue, and returns **one** next tool (or a final answer). Governance is
-enforced in code, not on the model's goodwill (see §9).
+Agent 循环刻意做得很小，且与后端无关。每一步把任务、结构化的状态快照、工具目录交给
+当前 LLM 后端，后端返回**一个**下一步工具（或收尾）。治理由代码强制执行，不依赖模型
+自觉（见 §9）。
 
-## 4. Demo Scenarios
+## 4. 演示场景 · Demo Scenarios
 
-Three cases, selectable in the UI:
+界面里三个可选案例：
 
-### Case 1 — Straight-through processing (`CLM-001`)
-Low value (EUR 2,500), active policy, documents complete, no fraud → risk `LOW`
-→ decision `AUTO_PROCESS` → RPA submits to the legacy system → **SUCCESS**.
+### 案例 1 — 快速理赔直通（`BX-2024-0001`）
+小额（¥3,800）、保单有效、单证齐全、无欺诈标记 → 风险 `低` → 结论 `自动核赔` →
+RPA 到查验平台验维修发票 → **成功**。
 
 ```
-✓ Claim found: EUR 2,500 (FNOL)
-✓ Policy ACTIVE -- Accidental Medical Expense (limit EUR 50,000)
-✓ Retrieved 3 rule(s); top: claim_rules.md -> Eligibility for automatic processing
-✓ Decision: AUTO_PROCESS
-✓ RPA completed (SUBMITTED)
+✓ 报案已找到：沪AX0001 ¥3,800（待核赔）
+✓ 保单有效 —— 机动车损失保险（保额 ¥500,000，免赔 ¥500）
+✓ 命中 3 条规则；最相关：核赔权限.md → 转人工核赔的金额与风险门槛
+✓ 核赔结论：自动核赔
+✓ RPA 执行完成（VERIFIED）
 ```
 
-### Case 2 — Human-in-the-loop (`CLM-002`)
-High value (EUR 12,000) exceeds the EUR 5,000 auto limit → decision
-`HUMAN_REVIEW` → the agent **pauses** and requests explicit approval. It cannot
-proceed to RPA until a human approves.
+### 案例 2 — 人工核赔闸门（`BX-2024-0002`）
+金额 ¥86,000 远超 ¥10,000 自动核赔限额 → 结论 `人工核赔` → Agent **暂停**并打包一份
+审批材料给核赔员。在人工通过之前，它无法继续执行 RPA。
 
-![Human approval](docs/screenshots/ui_case2_approval.png)
+![人工核赔](docs/screenshots/ui_case2_approval.png)
 
-### Case 3 — RPA failure → agent recovery *(the highlight)*
-Low value, but the legacy claim screen has **changed**. The brittle RPA selector
-(`#submit-claim-btn`, "Submit Claim") no longer matches. The agent detects the
-failure, inspects the live page, finds the semantically equivalent control
-("Confirm & Submit Claim") and completes the action.
+### 案例 3 — RPA 脆断 → Agent 自愈 *（重点）*
+金额不高，本可直通，但**增值税发票查验平台改版了**。写死的 RPA 选择器
+（`#verify-invoice-btn`，「查验」）不再匹配。Agent 检测到失败，读取实时页面，
+找到语义等价的控件（「查验发票信息」），完成操作。
 
-| Legacy v1 (RPA recorded here) | Legacy v2 (UI changed) |
+```
+❌ RPA 失败：元素未找到：#verify-invoice-btn（该页面上已不存在原「查验」按钮）
+↻ 启动浏览器自愈（Playwright）
+✓ 读取当前页面 DOM
+✓ 语义匹配命中：「查验发票信息」
+✓ 按 role=button + 可访问名称定位控件
+✓ 自动化已恢复，改用「查验发票信息」完成查验
+```
+
+| 改版前 v1（RPA 当初照着它录的） | 改版后 v2（页面变了） |
 |---|---|
 | ![v1](docs/screenshots/legacy_v1.png) | ![v2](docs/screenshots/legacy_v2.png) |
 
-```
-❌ RPA failed: Element not found: #submit-claim-btn
-↻ Agent recovery started (Playwright)
-✓ Inspecting current page DOM
-✓ Semantic match found: "Confirm & Submit Claim"
-✓ Selecting control via role=button + accessible name
-✓ Automation recovered via "Confirm & Submit Claim"
-```
+**为什么选发票查验做这个场景**：它是国内后台自动化里 RPA 密度最高的环节之一——
+查验平台只提供网页、不提供数据接口，只能靠 RPA 点；而平台页面结构调整会在同一个早上
+让各家的查验机器人集体罢工。这不是假设，是常态。
 
-## 5. Technology Stack
+## 5. 技术栈 · Stack
 
 - **Python 3.11+**
-- **Streamlit** — the UI.
-- **Flask** — the local "legacy" claim-management system (with v1/v2 UI variants).
-- **Playwright** — RPA execution *and* adaptive recovery against the legacy app.
-- **Three interchangeable LLM backends**, same agent loop, same tool set:
-  - **Anthropic Claude** *(optional)* — real tool-calling.
-  - **Any OpenAI-wire-compatible provider** *(optional)* — DeepSeek / 通义千问
-    (Qwen) / Kimi (Moonshot) / 智谱 GLM / a custom endpoint. Anthropic's API is
-    not reliably reachable from mainland China, so for a China deployment this
-    is the practical default — one backend implementation, swapped by
-    `base_url` + `model` (see §11). DeepSeek is the pre-configured default:
-    confirmed cheapest mainstream option with tool-calling support (verified
-    against its [official pricing page](https://api-docs.deepseek.com/quick_start/pricing/)).
-  - **Deterministic** *(no key, no network)* — the default fallback; the demo
-    always runs end-to-end even with zero configuration.
-- **Pure-Python TF-IDF retriever** — offline RAG (a FAISS/embeddings backend is a
-  documented drop-in).
+- **Streamlit** — 界面
+- **Flask** — 本地模拟的「增值税发票查验平台」（含 v1/v2 两套界面）
+- **Playwright** — RPA 执行 *与* 自适应自愈
+- **三套可互换的 LLM 后端**，同一个 Agent 循环、同一套工具：
+  - **Anthropic Claude** *（可选）*
+  - **任何 OpenAI 协议兼容的厂商** *（可选）* — DeepSeek / 通义千问 Qwen / Kimi /
+    智谱 GLM / 自建端点。国内部署这是实际默认项，一套实现靠 `base_url` + `model`
+    切换（见 §11）。DeepSeek 是预置默认。
+  - **确定性后端** *（无 Key、无网络）* — 默认兜底，零配置也能端到端跑完。
+- **纯 Python TF-IDF 检索器** — 离线 RAG，**支持中文分词**（字级 unigram + bigram，
+  不引入分词库）。FAISS/embeddings 后端是文档化的 drop-in 扩展点。
 
-No LangChain / LangGraph / AutoGen / CrewAI — the agent loop is hand-written so a
-reviewer can read exactly how tool selection works. No Kubernetes, microservices,
-or heavyweight vector DB.
+没有 LangChain / LangGraph / AutoGen / CrewAI —— Agent 循环是手写的，方便逐行读懂
+工具选择是怎么发生的。没有 K8s、微服务、重型向量库。
 
-## 6. RAG (retrieval-augmented rules)
+## 6. RAG（检索式规则依据）
 
-Business rules live in `knowledge/*.md` (`claim_rules`, `approval_rules`,
-`document_requirements`, `escalation_rules`). `rag/ingest.py` chunks them by
-section; `rag/retriever.py` exposes a `Retriever` interface with a default
-`LexicalRetriever` (TF-IDF cosine, no external services). The agent decides on
-**retrieved evidence**, not on the model's memory, and that evidence is shown to
-the human adjuster in the approval panel.
+业务规则放在 `knowledge/*.md`（`理赔规则`、`核赔权限`、`单证要求`、`发票查验规则`、
+`转人工规则`）。`rag/ingest.py` 按章节切块；`rag/retriever.py` 暴露 `Retriever` 接口，
+默认实现是 `LexicalRetriever`（TF-IDF 余弦，无外部服务）。
 
-Swapping to embeddings + FAISS means implementing `FaissRetriever.search`
-(skeleton included) — the return type never changes, so nothing else does.
+> **中文分词说明**：默认的 Latin-only 分词器对中文会返回空 token，导致所有向量为空、
+> 检索静默返回 0 条。`_tokenize` 因此对 CJK 片段同时索引单字与相邻双字，
+> 「自动核赔」这样的查询才能和「自动核赔限额」重叠命中。
 
-## 7. Agent Tool Routing
+Agent 是基于**检索到的依据**做决策，不是基于模型记忆；这份依据会原样出现在核赔员的
+审批面板里。
 
-`agent/router.py` is the explicit policy that makes the thesis concrete: **RPA is
-one tool the agent routes to, not the agent itself.**
+## 7. 工具路由 · Tool Routing
 
-| Situation | Routes to |
-|-----------|-----------|
-| Need claim / policy / history | Insurance API tools |
-| Need the governing rules | RAG (`search_rules`) |
-| Need a score & decision | Deterministic risk engine (`calculate_risk`) |
-| Decision = `AUTO_PROCESS` | RPA (`execute_rpa`) |
-| RPA failed on a changed UI | Browser recovery (`browser_recover`) |
-| Decision = `HUMAN_REVIEW` | Human approval (`request_human_approval`) |
+`agent/router.py` 是把论点写成代码的地方：**RPA 是 Agent 可以路由到的一个工具，
+不是 Agent 本身。**
 
-## 8. RPA + Browser Recovery
+| 情形 | 路由到 |
+|------|--------|
+| 需要报案 / 保单 / 历史出险 | 保司数据工具 |
+| 需要适用的业务规则 | RAG（`search_rules`） |
+| 需要风险评分与核赔结论 | 确定性风险引擎（`calculate_risk`） |
+| 结论 = 自动核赔 | RPA 发票查验（`execute_rpa`） |
+| RPA 因页面改版失败 | 浏览器自愈（`browser_recover`） |
+| 结论 = 人工核赔 | 核赔员审批（`request_human_approval`） |
 
-`rpa/interface.py` defines a product-agnostic `RPAAdapter.execute_workflow`. The
-only implementation here is `MockRPAAdapter`, which drives the local legacy app
-through a single **hard-coded selector** — deliberately mimicking classic,
-brittle RPA. When the UI changes, it fails with "element not found".
+## 8. RPA + 浏览器自愈
 
-`browser/recovery.py` does the opposite: it **inspects the live page**,
-enumerates the actionable controls, and picks the semantically equivalent one,
-preferring accessible `role=button[name]` selectors over coordinates.
+`rpa/interface.py` 定义了与产品无关的 `RPAAdapter.execute_workflow`。这里唯一的实现是
+`MockRPAAdapter`，它通过**一个写死的选择器**驱动本地模拟的查验平台——刻意还原经典的
+脆弱 RPA。页面一改，它就报"元素未找到"。
+
+`browser/recovery.py` 做的正相反：它**读取实时页面**，枚举可操作控件，挑出语义等价的
+那个，优先使用可访问的 `role=button[name]` 而不是坐标。
 
 ```
-RPA        = deterministic, selector-bound, breaks on UI change
-Playwright = inspects + adapts, recovers from the same UI change
+RPA        = 确定性、绑定选择器、页面一改就断
+Playwright = 读取 + 适应，能扛过同一次改版
 ```
 
-## 9. Human-in-the-loop
+> 意图关键词表（`_INTENT_KEYWORDS`）中文在前：这些页面是中文的，纯英文词表会把
+> 每个中文按钮都打成 0 分，自愈会在一个明明有按钮的页面上报告"未找到"。
 
-`request_human_approval` packages the claim, amount, risk, decision, reasons and
-retrieved evidence, then **pauses** the run. Crucially, the approval gate is
-enforced by an in-code **guardrail** in `agent/agent.py`: even a misbehaving LLM
-that tries to call `execute_rpa` on a high-value claim is redirected to request
-approval. This is covered by a test (`test_guardrail_blocks_rpa_bypass_on_high_value`).
+## 9. 人工核赔闸门 · Human-in-the-loop
 
-## 10. Running Locally
+`request_human_approval` 会把报案、金额、风险、结论、理由和检索到的规则依据打包，
+然后**暂停**整个运行。关键在于这道闸门是 `agent/agent.py` 里的**代码级护栏**：
+即便一个不听话的 LLM 直接调用 `execute_rpa`，也会被改道去请求审批。这一点有专门的
+测试守着（`test_guardrail_blocks_rpa_bypass_on_high_value`）。
+
+## 10. 本地运行 · Running Locally
 
 ```bash
-# 1. Install
+# 1. 安装
 pip install -r requirements.txt
 playwright install chromium
 
-# 2. (optional) configure — the demo runs with NO config at all
+# 2.（可选）配置 —— 零配置也能完整跑
 cp .env.example .env
-# Option A: add ANTHROPIC_API_KEY to use real Claude
-# Option B (recommended in mainland China): set LLM_MODE=openai_compatible and
-#   LLM_API_KEY=<your key> — LLM_PROVIDER defaults to deepseek
+# 方式 A：设置 ANTHROPIC_API_KEY 使用真实 Claude
+# 方式 B（国内推荐）：设置 LLM_MODE=openai_compatible 和
+#   LLM_API_KEY=<你的 key>，LLM_PROVIDER 默认 deepseek
 
-# 3. Run
-streamlit run app.py      # or:  python app.py
+# 3. 运行
+streamlit run app.py      # 或：python app.py
 ```
 
-Then pick a claim and click **Run Agent**. The legacy Flask app is started
-automatically. To run it standalone: `python legacy_app/app.py`.
+选一笔报案，点 **运行 Agent**。查验平台会自动拉起。单独运行它：`python legacy_app/app.py`。
 
 ```bash
-# Tests (no browser required — 30 tests)
+# 测试（不需要浏览器 —— 38 条）
 pytest -q
+
+# 分层导读：一次只点亮架构的一层
+python walkthrough.py        # 列出全部 10 步
+python walkthrough.py 5      # 只跑第 5 步（工具路由，最推荐先看）
+python walkthrough.py 1-8    # 前 8 层，不需要浏览器
 ```
 
-## 11. Configuration
+## 11. 配置 · Configuration
 
-All via environment variables / `.env` (see `.env.example`). Nothing secret is
-hard-coded.
+全部通过环境变量 / `.env`（见 `.env.example`）。没有任何硬编码的密钥。
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
+| 变量 | 默认值 | 用途 |
+|------|--------|------|
 | `LLM_MODE` | `auto` | `auto` / `anthropic` / `openai_compatible` / `deterministic` |
-| `ANTHROPIC_API_KEY` | — | enables the real Claude backend |
-| `ANTHROPIC_MODEL` | `claude-sonnet-4-20250514` | model id |
+| `ANTHROPIC_API_KEY` | — | 启用真实 Claude 后端 |
+| `ANTHROPIC_MODEL` | `claude-sonnet-4-20250514` | 模型 id |
 | `LLM_PROVIDER` | `deepseek` | `deepseek` / `qwen` / `kimi` / `zhipu` / `custom` |
-| `LLM_API_KEY` | — | API key for the selected OpenAI-compatible provider |
-| `LLM_MODEL` / `LLM_BASE_URL` | preset default | override the provider's default |
-| `INSURANCE_PROVIDER` | `mock` | `mock` / `facio` |
-| `FACIO_API_KEY` | — | required only for the Facio sandbox |
-| `LEGACY_HOST` / `LEGACY_PORT` | `127.0.0.1` / `5001` | legacy app |
-| `PLAYWRIGHT_HEADLESS` | `true` | headful for a live demo |
+| `LLM_API_KEY` | — | 所选 OpenAI 兼容厂商的 key |
+| `LLM_MODEL` / `LLM_BASE_URL` | 预置默认 | 覆盖厂商预设 |
+| `INSURANCE_PROVIDER` | `mock` | `mock` / `core` |
+| `CORE_API_BASE_URL` / `CORE_API_KEY` | — | 仅在接保司核心系统时需要 |
+| `LEGACY_HOST` / `LEGACY_PORT` | `127.0.0.1` / `5001` | 模拟查验平台 |
+| `PLAYWRIGHT_HEADLESS` | `true` | 现场演示可设 false 看真实点击 |
+| `PLAYWRIGHT_CHROMIUM_PATH` | — | 指定已有的 Chromium/Chrome，用于沙箱 / CI 镜像 |
 
-### Why DeepSeek is the default (not Anthropic)
+### 为什么默认 DeepSeek 而不是 Anthropic
 
-Anthropic's API is not reliably reachable from mainland China. Every mainstream
-Chinese model API (DeepSeek, 通义千问/Qwen via DashScope's compatible mode, Kimi,
-智谱 GLM) speaks the exact same OpenAI `chat.completions` wire format with tool
-calling, so `llm/openai_compatible.py` is **one** implementation that works with
-all of them — just point `LLM_PROVIDER` at a different preset. DeepSeek ships as
-the default because, checked against its official pricing page, it's currently
-the cheapest mainstream option that still supports tool calling reliably. Model
-ids and prices in this market move fast — the presets in `config.py` link to
-each provider's docs so you can re-verify before a real deployment.
+Anthropic 的 API 在中国大陆无法稳定访问。国内主流模型 API（DeepSeek、通义千问
+DashScope 兼容模式、Kimi、智谱 GLM）都说同一套 OpenAI `chat.completions` 协议且支持
+tool calling，所以 `llm/openai_compatible.py` **一套实现**就能全部覆盖，切换厂商只需
+改 `LLM_PROVIDER`。这个市场的模型 id 和价格变动很快——`config.py` 的预设里带了各厂商
+文档链接，正式部署前请自行复核。
 
-## 12. Project Structure
+## 12. 目录结构 · Project Structure
 
 ```
 agentic-insurance-automation/
-├── app.py                 # entry point (streamlit run app.py | python app.py)
-├── config.py              # env-driven settings (incl. multi-backend LLM mode)
-├── agent/                 # agent loop, router, state, prompts, trace
-├── llm/                   # backend abstraction: anthropic + openai-compatible (DeepSeek/Qwen/Kimi/GLM) + deterministic
-├── tools/                 # the tool catalogue the agent selects from
-├── insurance/             # provider abstraction: mock + Facio skeleton
-├── rag/                   # ingest + retriever (lexical default, FAISS skeleton)
-├── risk/                  # deterministic risk & decision engine
-├── rpa/                   # RPAAdapter interface + MockRPAAdapter
-├── browser/               # Playwright driver + adaptive recovery
-├── legacy_app/            # Flask "legacy" claim system (v1/v2 UI)
-├── knowledge/             # business rules (RAG source)
-├── data/                  # synthetic demo claims
-├── ui/                    # Streamlit UI
-└── tests/                 # pytest suite
+├── app.py                 # 入口（streamlit run app.py | python app.py）
+├── walkthrough.py         # 分层导读：一次只点亮一层
+├── config.py              # 环境变量配置（含多后端 LLM 模式）
+├── agent/                 # Agent 循环、路由、状态、提示词、执行轨迹
+├── llm/                   # 后端抽象：anthropic + openai 兼容 + 确定性
+├── tools/                 # Agent 可选的工具目录
+├── insurance/             # 保司数据抽象：mock + 核心系统骨架
+├── rag/                   # 切块 + 检索（中文词法默认，FAISS 骨架）
+├── risk/                  # 确定性风险与核赔结论引擎
+├── rpa/                   # RPAAdapter 接口 + MockRPAAdapter
+├── browser/               # Playwright 驱动 + 自适应自愈
+├── legacy_app/            # 模拟的增值税发票查验平台（v1/v2 两版界面）
+├── knowledge/             # 中文业务规则（RAG 数据源）
+├── data/                  # 合成演示报案
+├── ui/                    # Streamlit 界面
+├── docs/                  # GitHub Pages 落地页
+└── tests/                 # pytest 套件
 ```
 
-## 13. Design Decisions
+## 13. 设计取舍 · Design Decisions
 
-- **Deterministic business logic, not LLM guesses.** Risk score and routing
-  decision come from `risk/engine.py`. The LLM orchestrates and explains; it
-  never invents the number that moves money.
-- **Three-way LLM backend, one agent loop.** Real Claude, any OpenAI-wire-
-  compatible provider (DeepSeek/Qwen/Kimi/GLM), or a deterministic policy all
-  drive the *identical* agent loop and tool set. The demo is therefore reliable
-  in a live interview even with no key and no network, and swapping to a
-  China-reachable model is a config change, not a code change.
-- **State-snapshot agent loop.** Each step re-derives from an explicit
-  `AgentState`, which makes the human-in-the-loop pause cleanly resumable.
-- **Governance in code.** The human-approval gate is a guardrail, not a prompt
-  request.
-- **Clean seams.** Insurance provider, RPA adapter, RAG retriever, and LLM
-  backend are all interfaces with a mock/default implementation and a
-  documented plug-in point.
+- **确定性业务逻辑，不是 LLM 猜测。** 风险分和核赔结论来自 `risk/engine.py`。
+  LLM 负责编排和解释；它不产出那个动钱的数字。
+- **三套 LLM 后端，一个 Agent 循环。** 真 Claude、任何 OpenAI 兼容厂商、或纯确定性
+  策略，驱动的是*完全相同*的循环和工具集。所以没有 Key、没有网络也能可靠演示，
+  换成国内可达的模型是配置变更而非代码变更。
+- **状态快照式循环。** 每一步都从显式的 `AgentState` 重新推导，人工中断后能干净续跑。
+- **治理写在代码里。** 人工核赔闸门是护栏，不是提示词里的请求。
+- **干净的接缝。** 保司数据源、RPA 适配器、RAG 检索器、LLM 后端全是接口 + 默认实现 +
+  文档化的替换点。业务场景本地化时，`agent/`、`llm/`、`tools/registry.py`
+  这些架构层一行都没动过。
 
-## 14. Limitations
+## 14. 局限 · Limitations
 
-- The insurance backend is a synthetic mock; the Facio adapter is a skeleton.
-- The RPA layer is a **mock adapter**, not a real enterprise RPA product.
-- The knowledge base is small and curated; the default retriever is lexical.
-- The legacy app is a minimal stand-in for a real legacy system.
+- 保司后端是合成 mock；核心系统适配器是骨架。
+- RPA 层是 **mock 适配器**，不是真实的企业 RPA 产品。
+- 知识库规模小且经过整理；默认检索器是词法的（非语义向量）。
+- 查验平台是最小化的本地模拟，**不是**任何真实平台，也没有使用其任何标识。
 
-## 15. Future Work
+## 15. 后续方向 · Future Work
 
-- Plug a real enterprise RPA adapter into `RPAAdapter` (UiPath / 艺赛旗 iS-RPA /
-  影刀 / Automation Anywhere).
-- Wire the Facio sandbox (or a real carrier API) into `insurance/facio_client.py`.
-- Swap the lexical retriever for embeddings + FAISS via `FaissRetriever`.
-- Add document understanding (OCR/extraction) for the claim attachments.
-- Persist runs and add an audit log for approvals.
+- 把真实企业 RPA 接入 `RPAAdapter`（UiPath / 艺赛旗 iS-RPA / 影刀 / Automation Anywhere）。
+- 把保司核心系统接入 `insurance/carrier_client.py`。
+- 用 embeddings + FAISS 替换词法检索器（`FaissRetriever` 骨架已就位）。
+- 加入单证理解（OCR / 要素抽取）处理定损单与发票影像。
+- 持久化运行记录，为审批建立审计日志。
 
-## 16. Disclaimer
+## 16. 免责声明 · Disclaimer
 
-> This is an **independent technical proof-of-concept** using **synthetic /
-> public-sandbox data**. It does **not** use or reproduce any proprietary
-> systems, data, processes, or credentials, and it is **not** an official product
-> of any company. The "RPA" layer is a mock adapter designed as an integration
-> boundary; it is not a real enterprise RPA product.
+> 这是一个**独立的技术验证**，使用**全合成数据**。它**不**使用、也**不**复现任何专有
+> 系统、数据、流程或凭据，**不是**任何公司的官方产品。报案号、保单号、车牌、发票号码
+> 均为虚构。"RPA"层是按集成边界设计的 mock 适配器，不是真实的企业 RPA 产品。
+> `legacy_app/` 是一个本地模拟页面，用于演示 RPA 脆断与自愈，**不是**任何真实查验
+> 平台，也未使用其名称、标识或品牌元素。
 
 ---
 
-### Key Insight
+### 一句话 · Key Insight
 
-> The goal is not to replace RPA with AI. The goal is to make RPA **one of
-> several execution capabilities** available to an intelligent orchestrator —
-> so a carrier's existing automation investment is *extended*, not thrown away.
+> 目标不是用 AI 取代 RPA，而是让 RPA 成为一个智能编排者**可调用的多种执行能力之一**
+> ——让保司已有的自动化投入被*延长*，而不是被扔掉。

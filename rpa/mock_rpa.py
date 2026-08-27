@@ -1,31 +1,36 @@
-"""Mock RPA adapter that automates the local legacy claim system.
+"""Mock RPA adapter that automates the local invoice-verification platform.
 
-It intentionally behaves like *classic, brittle* RPA: it drives the UI through a
-single **hard-coded selector** (``#submit-claim-btn``) captured when the workflow
-was first "recorded" against v1 of the legacy screen. It has no understanding of
-the page -- so when the screen changes to v2 (the button becomes
-``#confirm-submit-btn`` / "Confirm & Submit Claim"), the selector no longer
-matches and the workflow fails with "element not found".
+It intentionally behaves like *classic, brittle* RPA: it drives the page through
+a single **hard-coded selector** (``#verify-invoice-btn``) captured when the
+workflow was first "recorded" against v1 of the 查验 screen. It has no
+understanding of the page -- so when the screen is redesigned to v2 (the control
+becomes ``#check-invoice-btn`` / "查验发票信息"), the selector no longer matches
+and the workflow fails with "元素未找到".
 
-That failure is not a bug; it is the whole point. It is the exact class of
-breakage that keeps traditional RPA fragile, and the trigger for the agent's
-browser-based recovery.
+That failure is not a bug; it is the whole point. Invoice verification is one of
+the most RPA-heavy steps in this market precisely because the platform is
+web-only, and a portal redesign taking every carrier's verification bot offline
+on the same morning is an ordinary event, not a hypothetical.
 
 README note: this is a mock adapter for a public PoC. The adapter boundary
 (``RPAAdapter.execute_workflow``) is designed so a real enterprise RPA
-implementation can be integrated later. It is NOT a real enterprise RPA product.
+implementation (UiPath / 艺赛旗 iS-RPA / 影刀 / Automation Anywhere) can be
+integrated later. It is NOT a real enterprise RPA product.
 """
 
 from __future__ import annotations
 
 from typing import Any, Dict
+from urllib.parse import urlencode
 
 from browser.driver import BrowserUnavailable, page_session
 from config import settings
 from rpa.interface import RPAAdapter, RPAExecutionError, RPAResult
 
 # The single brittle selector this "recorded" workflow depends on.
-BRITTLE_SELECTOR = "#submit-claim-btn"
+BRITTLE_SELECTOR = "#verify-invoice-btn"
+
+WORKFLOW = "verify_invoice"
 
 
 class MockRPAAdapter(RPAAdapter):
@@ -35,13 +40,20 @@ class MockRPAAdapter(RPAAdapter):
         self.base_url = base_url or settings.legacy_base_url
 
     def execute_workflow(self, workflow_name: str, parameters: Dict[str, Any]) -> RPAResult:
-        if workflow_name != "submit_claim":
-            raise RPAExecutionError(f"Unknown RPA workflow: {workflow_name}")
+        if workflow_name != WORKFLOW:
+            raise RPAExecutionError(f"未知的 RPA 流程：{workflow_name}")
 
-        claim_id = parameters.get("claim_id", "")
-        amount = parameters.get("amount", "")
-        ui_variant = parameters.get("ui_variant", "v1")  # current state of legacy UI
-        url = f"{self.base_url}/?ui={ui_variant}&claim_id={claim_id}&amount={amount}"
+        query = urlencode(
+            {
+                # The platform's *current* UI state (v1 original, v2 redesigned).
+                "ui": parameters.get("ui_variant", "v1"),
+                "claim_id": parameters.get("claim_id", ""),
+                "invoice_code": parameters.get("invoice_code", ""),
+                "invoice_no": parameters.get("invoice_no", ""),
+                "amount": parameters.get("amount", ""),
+            }
+        )
+        url = f"{self.base_url}/?{query}"
 
         try:
             with page_session(url) as page:
@@ -50,8 +62,8 @@ class MockRPAAdapter(RPAAdapter):
                 locator = page.locator(BRITTLE_SELECTOR)
                 if locator.count() == 0:
                     raise RPAExecutionError(
-                        f"Element not found: {BRITTLE_SELECTOR} "
-                        f"(the legacy 'Submit Claim' control is missing on this screen)"
+                        f"元素未找到：{BRITTLE_SELECTOR}"
+                        f"（该页面上已不存在原「查验」按钮）"
                     )
                 locator.click(timeout=3000)
                 page.wait_for_selector("#result", timeout=5000)
@@ -59,7 +71,7 @@ class MockRPAAdapter(RPAAdapter):
                 return RPAResult(
                     success=True,
                     workflow=workflow_name,
-                    message="Claim submitted via legacy RPA workflow.",
+                    message="维修发票已通过查验平台验真。",
                     details={"selector": BRITTLE_SELECTOR, "result_status": status},
                 )
         except BrowserUnavailable:
@@ -68,6 +80,6 @@ class MockRPAAdapter(RPAAdapter):
             raise
         except Exception as exc:  # a Playwright timeout on the click == selector broke
             raise RPAExecutionError(
-                f"RPA workflow '{workflow_name}' failed on selector "
-                f"{BRITTLE_SELECTOR}: {type(exc).__name__}"
+                f"RPA 流程「{workflow_name}」在选择器 {BRITTLE_SELECTOR} 上失败："
+                f"{type(exc).__name__}"
             ) from exc

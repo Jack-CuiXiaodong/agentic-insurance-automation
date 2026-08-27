@@ -1,83 +1,102 @@
 {
+  "_note": "合成演示数据。报案号、保单号、车牌、发票号码均为虚构，不对应任何真实保单、车辆或发票。",
   "claims": {
-    "CLM-001": {
-      "claim_id": "CLM-001",
-      "policy_id": "POL-001",
-      "claimant": "Synthetic Claimant A",
-      "loss_type": "accident_medical",
-      "amount": 2500,
-      "currency": "EUR",
-      "status": "FNOL",
+    "BX-2024-0001": {
+      "claim_id": "BX-2024-0001",
+      "policy_id": "BD-2024-0001",
+      "claimant": "合成车主甲",
+      "plate_no": "沪AX0001",
+      "loss_type": "车辆损失",
+      "accident_date": "2024-07-12",
+      "amount": 3800,
+      "currency": "CNY",
+      "status": "待核赔",
       "fraud_flag": false,
-      "documents": ["medical_receipt.pdf", "accident_report.pdf"],
-      "legacy_ui_variant": "v1",
-      "notes": "Low-value, documents complete, active policy -- straight-through candidate."
+      "documents": ["定损单.pdf", "维修发票.pdf", "事故认定书.pdf"],
+      "invoice_code": "031002100311",
+      "invoice_no": "58273914",
+      "invoice_platform_ui": "v1",
+      "notes": "小额车损，单证齐全，保单有效，出险距起保半年 —— 快速理赔直通候选。"
     },
-    "CLM-002": {
-      "claim_id": "CLM-002",
-      "policy_id": "POL-002",
-      "claimant": "Synthetic Claimant B",
-      "loss_type": "accident_medical",
-      "amount": 12000,
-      "currency": "EUR",
-      "status": "FNOL",
+    "BX-2024-0002": {
+      "claim_id": "BX-2024-0002",
+      "policy_id": "BD-2024-0002",
+      "claimant": "合成车主乙",
+      "plate_no": "苏EX0002",
+      "loss_type": "车辆损失",
+      "accident_date": "2024-08-03",
+      "amount": 86000,
+      "currency": "CNY",
+      "status": "待核赔",
       "fraud_flag": false,
-      "documents": ["medical_receipt.pdf", "accident_report.pdf", "itemized_bill.pdf"],
-      "legacy_ui_variant": "v1",
-      "notes": "High-value claim above the auto-processing limit -- requires human approval."
+      "documents": ["定损单.pdf", "维修发票.pdf", "事故认定书.pdf", "施救费发票.pdf"],
+      "invoice_code": "032002100415",
+      "invoice_no": "61094822",
+      "invoice_platform_ui": "v1",
+      "notes": "重大事故，维修金额远超 1 万元自动核赔限额 —— 必须转人工核赔。"
     },
-    "CLM-003": {
-      "claim_id": "CLM-003",
-      "policy_id": "POL-003",
-      "claimant": "Synthetic Claimant C",
-      "loss_type": "accident_medical",
-      "amount": 2500,
-      "currency": "EUR",
-      "status": "FNOL",
+    "BX-2024-0003": {
+      "claim_id": "BX-2024-0003",
+      "policy_id": "BD-2024-0003",
+      "claimant": "合成车主丙",
+      "plate_no": "粤BX0003",
+      "loss_type": "车辆损失",
+      "accident_date": "2024-08-19",
+      "amount": 4200,
+      "currency": "CNY",
+      "status": "待核赔",
       "fraud_flag": false,
-      "documents": ["medical_receipt.pdf", "accident_report.pdf"],
-      "legacy_ui_variant": "v2",
-      "notes": "Low-value auto candidate, BUT the legacy claim system UI has changed (v2) so a brittle RPA selector fails -- triggers agent browser recovery."
+      "documents": ["定损单.pdf", "维修发票.pdf", "事故认定书.pdf"],
+      "invoice_code": "033002100286",
+      "invoice_no": "47715630",
+      "invoice_platform_ui": "v2",
+      "notes": "小额车损、本可直通，但发票查验平台已改版（v2），写死选择器的 RPA 必然失效 —— 触发 Agent 浏览器自愈。"
     }
   },
   "policies": {
-    "POL-001": {
-      "policy_id": "POL-001",
-      "status": "ACTIVE",
-      "product": "Personal Accident",
-      "coverage": "Accidental Medical Expense",
-      "currency": "EUR",
-      "limit": 50000,
-      "deductible": 1000
+    "BD-2024-0001": {
+      "policy_id": "BD-2024-0001",
+      "status": "有效",
+      "product": "机动车综合商业保险",
+      "coverage": "机动车损失保险",
+      "currency": "CNY",
+      "limit": 500000,
+      "deductible": 500,
+      "inception_date": "2024-01-15",
+      "expiry_date": "2025-01-14"
     },
-    "POL-002": {
-      "policy_id": "POL-002",
-      "status": "ACTIVE",
-      "product": "Personal Accident",
-      "coverage": "Accidental Medical Expense",
-      "currency": "EUR",
-      "limit": 50000,
-      "deductible": 1000
+    "BD-2024-0002": {
+      "policy_id": "BD-2024-0002",
+      "status": "有效",
+      "product": "机动车综合商业保险",
+      "coverage": "机动车损失保险",
+      "currency": "CNY",
+      "limit": 800000,
+      "deductible": 1000,
+      "inception_date": "2024-03-01",
+      "expiry_date": "2025-02-28"
     },
-    "POL-003": {
-      "policy_id": "POL-003",
-      "status": "ACTIVE",
-      "product": "Personal Accident",
-      "coverage": "Accidental Medical Expense",
-      "currency": "EUR",
-      "limit": 50000,
-      "deductible": 1000
+    "BD-2024-0003": {
+      "policy_id": "BD-2024-0003",
+      "status": "有效",
+      "product": "机动车综合商业保险",
+      "coverage": "机动车损失保险",
+      "currency": "CNY",
+      "limit": 500000,
+      "deductible": 500,
+      "inception_date": "2024-02-20",
+      "expiry_date": "2025-02-19"
     }
   },
   "claim_history": {
-    "POL-001": [
-      {"claim_id": "CLM-1990", "amount": 800, "status": "PAID", "fraud_flag": false}
+    "BD-2024-0001": [
+      {"claim_id": "BX-2023-0912", "amount": 1200, "status": "已结案", "fraud_flag": false}
     ],
-    "POL-002": [
-      {"claim_id": "CLM-1991", "amount": 3400, "status": "PAID", "fraud_flag": false}
+    "BD-2024-0002": [
+      {"claim_id": "BX-2023-1104", "amount": 5600, "status": "已结案", "fraud_flag": false}
     ],
-    "POL-003": [
-      {"claim_id": "CLM-1992", "amount": 1200, "status": "PAID", "fraud_flag": false}
+    "BD-2024-0003": [
+      {"claim_id": "BX-2024-0155", "amount": 2300, "status": "已结案", "fraud_flag": false}
     ]
   }
 }

@@ -21,11 +21,27 @@ from typing import Any, Dict, List
 
 from rag.ingest import Chunk, load_chunks
 
-_TOKEN_RE = re.compile(r"[a-z0-9]+")
+_LATIN_RE = re.compile(r"[a-z0-9]+")
+_CJK_RE = re.compile(r"[\u4e00-\u9fff]+")
 
 
 def _tokenize(text: str) -> List[str]:
-    return _TOKEN_RE.findall(text.lower())
+    """Tokenize mixed Chinese/English text.
+
+    Latin runs split on word boundaries as usual. Chinese has no spaces between
+    words, so a Latin-only tokenizer returns *nothing* for a Chinese sentence --
+    every vector comes out empty and retrieval silently returns zero hits. Each
+    CJK run is therefore indexed as both single characters and adjacent-character
+    bigrams, which is enough for a small curated rule base: a query for
+    "自动核赔" still overlaps a rule that says "自动核赔限额", without pulling in a
+    segmentation library and giving up the offline, dependency-free design.
+    """
+    text = text.lower()
+    tokens = _LATIN_RE.findall(text)
+    for run in _CJK_RE.findall(text):
+        tokens.extend(run)
+        tokens.extend(run[i:i + 2] for i in range(len(run) - 1))
+    return tokens
 
 
 @dataclass

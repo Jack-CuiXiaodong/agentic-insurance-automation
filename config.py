@@ -100,16 +100,16 @@ class Settings:
     llm_mode: str = field(default_factory=lambda: _env("LLM_MODE", "auto").lower())
 
     # -- Insurance backend --------------------------------------------------
-    # mock | facio
+    # mock | core  (core = a carrier's own policy/claims system)
     insurance_provider: str = field(
         default_factory=lambda: _env("INSURANCE_PROVIDER", "mock").lower()
     )
-    facio_base_url: str = field(
-        default_factory=lambda: _env("FACIO_BASE_URL", "https://api.facio.io")
+    core_api_base_url: str = field(
+        default_factory=lambda: _env("CORE_API_BASE_URL", "http://127.0.0.1:8080")
     )
-    facio_api_key: str = field(default_factory=lambda: _env("FACIO_API_KEY"))
+    core_api_key: str = field(default_factory=lambda: _env("CORE_API_KEY"))
 
-    # -- Legacy web app (for the RPA / recovery demo) -----------------------
+    # -- Mock invoice-verification platform (for the RPA / recovery demo) ---
     legacy_host: str = field(default_factory=lambda: _env("LEGACY_HOST", "127.0.0.1"))
     legacy_port: int = field(default_factory=lambda: int(_env("LEGACY_PORT", "5001")))
 

@@ -11,10 +11,23 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 
-# High-level decisions the agent can reach for a claim.
+# High-level decisions the agent can reach for a claim. The identifiers stay
+# English so router logic, guardrails and tests read the same in any locale;
+# DECISION_LABELS is the only place they turn into user-facing Chinese.
 AUTO_PROCESS = "AUTO_PROCESS"
 HUMAN_REVIEW = "HUMAN_REVIEW"
 REJECT = "REJECT"
+
+DECISION_LABELS = {
+    AUTO_PROCESS: "自动核赔",
+    HUMAN_REVIEW: "人工核赔",
+    REJECT: "拒赔",
+}
+
+
+def decision_label(decision: str | None) -> str:
+    """User-facing Chinese label for a decision id."""
+    return DECISION_LABELS.get(decision or "", decision or "-")
 
 
 @dataclass

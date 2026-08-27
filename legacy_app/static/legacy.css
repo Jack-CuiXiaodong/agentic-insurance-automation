@@ -57,3 +57,12 @@ button:active {
   letter-spacing: 1px;
   margin-bottom: 12px;
 }
+
+.mockbanner {
+  background: #fff8e1;
+  border-bottom: 1px solid #e0cf9a;
+  color: #8a6d1f;
+  font-size: 12px;
+  padding: 6px 12px;
+  text-align: center;
+}

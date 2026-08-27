@@ -1,9 +1,9 @@
 """Tool Router.
 
 Makes the project's core claim explicit in code: **RPA is one execution tool the
-agent can route to, not the agent itself.** The same context can route to an API
-tool, an RPA workflow, a browser-recovery step, or a human -- depending on the
-situation.
+agent can route to, not the agent itself.** The same context can route to a data
+tool, an RPA workflow, a browser-recovery step, or a human adjuster -- depending
+on the situation.
 
 ``choose_next_tool`` is the deterministic policy. It is used directly by the
 deterministic LLM backend and is what makes the human-in-the-loop flow cleanly
@@ -19,12 +19,12 @@ from agent.state import AUTO_PROCESS, HUMAN_REVIEW, REJECT, AgentState
 
 # Human-readable routing table (documentation + surfaced in the UI).
 ROUTES = [
-    ("Need claim / policy / history data", "-> insurance API tools"),
-    ("Need the governing business rules", "-> RAG (search_rules)"),
-    ("Need a risk score & decision", "-> deterministic risk engine (calculate_risk)"),
-    ("Decision = AUTO_PROCESS", "-> RPA (execute_rpa)"),
-    ("RPA failed on a changed UI", "-> Browser recovery (browser_recover)"),
-    ("Decision = HUMAN_REVIEW", "-> Human approval (request_human_approval)"),
+    ("需要报案 / 保单 / 历史出险数据", "→ 保司数据工具"),
+    ("需要适用的业务规则", "→ RAG 检索（search_rules）"),
+    ("需要风险评分与核赔结论", "→ 确定性风险引擎（calculate_risk）"),
+    ("结论 = 自动核赔", "→ RPA 发票查验（execute_rpa）"),
+    ("RPA 因页面改版失败", "→ 浏览器自愈（browser_recover）"),
+    ("结论 = 人工核赔", "→ 核赔员审批（request_human_approval）"),
 ]
 
 # Status of the agent run.
@@ -37,48 +37,48 @@ def _execution_step(state: AgentState) -> Tuple[Optional[str], str]:
     """Route the *execution* phase (after a claim is approved/auto)."""
     rpa = state.rpa_result
     if rpa is None:
-        return "execute_rpa", "Approved/auto -> run deterministic RPA on the legacy system"
+        return "execute_rpa", "已通过/可自动 → 运行 RPA 到查验平台验票"
     if rpa.get("success"):
-        return None, "RPA succeeded -- nothing left to do"
+        return None, "RPA 已成功 —— 无后续动作"
     # RPA failed.
     if rpa.get("message", "").lower().find("browser unavailable") != -1 or "Browser is not" in rpa.get("message", ""):
         # Recovery also needs a browser; can't recover.
-        return None, "RPA failed and browser is unavailable -- cannot recover"
+        return None, "RPA 失败且浏览器不可用 —— 无法自愈"
     if state.recovery_result is None:
-        return "browser_recover", "RPA selector broke -> adaptive Playwright recovery"
-    return None, "Recovery attempt already made -- nothing left to do"
+        return "browser_recover", "RPA 选择器失效 → 启动 Playwright 自适应自愈"
+    return None, "已尝试过自愈 —— 无后续动作"
 
 
 def choose_next_tool(state: AgentState) -> Tuple[Optional[str], str]:
     """Return ``(tool_name_or_None, reasoning)`` for the next agent step."""
     if state.claim is None:
-        return "get_claim", "No claim loaded yet -> retrieve it"
+        return "get_claim", "尚未加载报案 → 先读取报案"
     if state.policy is None:
-        return "get_policy", "Claim loaded; need policy status & coverage"
+        return "get_policy", "报案已加载；需要保单状态与险种"
     if state.claim_history is None:
-        return "get_claim_history", "Need prior history for risk assessment"
+        return "get_claim_history", "风险评估需要历史出险"
     if state.retrieved_rules is None:
-        return "search_rules", "Need governing business rules (RAG evidence)"
+        return "search_rules", "需要适用的业务规则（RAG 依据）"
     if state.decision is None:
-        return "calculate_risk", "Have data + rules -> compute risk & decision"
+        return "calculate_risk", "数据与规则齐备 → 计算风险与核赔结论"
 
     if state.decision == REJECT:
-        return None, "Decision is REJECT -- claim cannot proceed"
+        return None, "结论为拒赔 —— 报案不能继续"
 
     if state.decision == HUMAN_REVIEW:
         if state.human_request is None:
-            return "request_human_approval", "High-value/high-risk -> request human approval"
+            return "request_human_approval", "高金额/高风险 → 请求核赔员审批"
         if state.human_decision is None:
-            return None, "Waiting for a human decision"
+            return None, "等待核赔员给出结论"
         if state.human_decision == "REJECT":
-            return None, "Human rejected the claim"
+            return None, "核赔员已拒赔"
         # human APPROVE -> fall through to execution
         return _execution_step(state)
 
     if state.decision == AUTO_PROCESS:
         return _execution_step(state)
 
-    return None, "No further action"
+    return None, "无后续动作"
 
 
 def run_status(state: AgentState) -> str:

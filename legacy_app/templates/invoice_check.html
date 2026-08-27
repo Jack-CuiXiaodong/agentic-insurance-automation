@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>增值税发票查验平台（本地模拟）</title>
+  <link rel="stylesheet" href="/static/legacy.css" />
+</head>
+<body>
+  <div class="frame">
+    <div class="titlebar">增值税发票查验平台 &mdash; 界面版本 v{{ '2' if ui == 'v2' else '1' }}</div>
+    <div class="mockbanner">
+      本地模拟页面 &middot; 合成数据 &middot; 非任何真实查验平台，仅用于演示 RPA 与自愈
+    </div>
+    <form class="claim-form" action="/verify" method="post">
+      <input type="hidden" name="ui" value="{{ ui }}" />
+      <input type="hidden" name="claim_id" value="{{ claim_id }}" />
+      <label>发票代码
+        <input type="text" name="invoice_code" value="{{ invoice_code }}" />
+      </label>
+      <label>发票号码
+        <input type="text" name="invoice_no" value="{{ invoice_no }}" />
+      </label>
+      <label>开票金额
+        <input type="text" name="amount" value="{{ amount }}" />
+      </label>
+      <label>查验状态
+        <input type="text" name="status" value="待查验" readonly />
+      </label>
+
+      {% if ui == 'v2' %}
+      <button type="submit" id="check-invoice-btn" name="check_invoice">
+        查验发票信息
+      </button>
+      {% else %}
+      <button type="submit" id="verify-invoice-btn" name="verify_invoice">
+        查验
+      </button>
+      {% endif %}
+      <button type="button" id="reset-btn" name="reset">重置</button>
+    </form>
+  </div>
+</body>
+</html>
