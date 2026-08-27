@@ -1,0 +1,83 @@
+{
+  "claims": {
+    "CLM-001": {
+      "claim_id": "CLM-001",
+      "policy_id": "POL-001",
+      "claimant": "Synthetic Claimant A",
+      "loss_type": "accident_medical",
+      "amount": 2500,
+      "currency": "EUR",
+      "status": "FNOL",
+      "fraud_flag": false,
+      "documents": ["medical_receipt.pdf", "accident_report.pdf"],
+      "legacy_ui_variant": "v1",
+      "notes": "Low-value, documents complete, active policy -- straight-through candidate."
+    },
+    "CLM-002": {
+      "claim_id": "CLM-002",
+      "policy_id": "POL-002",
+      "claimant": "Synthetic Claimant B",
+      "loss_type": "accident_medical",
+      "amount": 12000,
+      "currency": "EUR",
+      "status": "FNOL",
+      "fraud_flag": false,
+      "documents": ["medical_receipt.pdf", "accident_report.pdf", "itemized_bill.pdf"],
+      "legacy_ui_variant": "v1",
+      "notes": "High-value claim above the auto-processing limit -- requires human approval."
+    },
+    "CLM-003": {
+      "claim_id": "CLM-003",
+      "policy_id": "POL-003",
+      "claimant": "Synthetic Claimant C",
+      "loss_type": "accident_medical",
+      "amount": 2500,
+      "currency": "EUR",
+      "status": "FNOL",
+      "fraud_flag": false,
+      "documents": ["medical_receipt.pdf", "accident_report.pdf"],
+      "legacy_ui_variant": "v2",
+      "notes": "Low-value auto candidate, BUT the legacy claim system UI has changed (v2) so a brittle RPA selector fails -- triggers agent browser recovery."
+    }
+  },
+  "policies": {
+    "POL-001": {
+      "policy_id": "POL-001",
+      "status": "ACTIVE",
+      "product": "Personal Accident",
+      "coverage": "Accidental Medical Expense",
+      "currency": "EUR",
+      "limit": 50000,
+      "deductible": 1000
+    },
+    "POL-002": {
+      "policy_id": "POL-002",
+      "status": "ACTIVE",
+      "product": "Personal Accident",
+      "coverage": "Accidental Medical Expense",
+      "currency": "EUR",
+      "limit": 50000,
+      "deductible": 1000
+    },
+    "POL-003": {
+      "policy_id": "POL-003",
+      "status": "ACTIVE",
+      "product": "Personal Accident",
+      "coverage": "Accidental Medical Expense",
+      "currency": "EUR",
+      "limit": 50000,
+      "deductible": 1000
+    }
+  },
+  "claim_history": {
+    "POL-001": [
+      {"claim_id": "CLM-1990", "amount": 800, "status": "PAID", "fraud_flag": false}
+    ],
+    "POL-002": [
+      {"claim_id": "CLM-1991", "amount": 3400, "status": "PAID", "fraud_flag": false}
+    ],
+    "POL-003": [
+      {"claim_id": "CLM-1992", "amount": 1200, "status": "PAID", "fraud_flag": false}
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+# Core runtime
+streamlit>=1.33
+flask>=3.0
+playwright>=1.44
+requests>=2.31
+python-dotenv>=1.0
+
+# Real-LLM backends (both optional at runtime -- the deterministic backend needs
+# no key at all). Install whichever you plan to use:
+anthropic>=0.34          # Claude (often unreachable from mainland China)
+openai>=1.40              # OpenAI-wire-compatible: DeepSeek / Qwen / Kimi / 智谱 GLM / custom
+
+# Dev / tests
+pytest>=8.0
+
+# --- Optional: embeddings + FAISS RAG backend (see rag/retriever.py) ---------
+# faiss-cpu>=1.8
+# sentence-transformers>=2.7

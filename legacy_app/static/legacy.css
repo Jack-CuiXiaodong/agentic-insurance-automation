@@ -1,0 +1,59 @@
+/* Deliberately dated styling -- it is a "legacy" system, after all. */
+body {
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  background: #c8d0d8;
+  margin: 0;
+  padding: 32px;
+}
+.frame {
+  max-width: 420px;
+  margin: 0 auto;
+  background: #f4f4f0;
+  border: 2px solid #7a8894;
+  box-shadow: 3px 3px 0 #9aa6b0;
+}
+.titlebar {
+  background: linear-gradient(#3a6ea5, #2b5286);
+  color: #fff;
+  font-weight: 600;
+  padding: 8px 12px;
+  font-size: 14px;
+}
+.claim-form,
+.result {
+  padding: 20px;
+}
+.claim-form label {
+  display: block;
+  font-size: 13px;
+  color: #333;
+  margin-bottom: 14px;
+}
+.claim-form input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid #8894a0;
+  background: #fff;
+}
+button {
+  background: #e1e1d8;
+  border: 2px outset #b8b8ac;
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+}
+button:active {
+  border-style: inset;
+}
+.result-badge {
+  display: inline-block;
+  background: #2f8f4e;
+  color: #fff;
+  padding: 4px 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+}
