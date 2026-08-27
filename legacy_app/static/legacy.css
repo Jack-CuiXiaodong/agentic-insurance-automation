@@ -1,4 +1,20 @@
-/* Deliberately dated styling -- it is a "legacy" system, after all. */
+/* ==========================================================================
+   发票查验平台（本地模拟）的两套皮肤。
+
+   .ui-v1 —— 改版前的老界面。刻意做旧：它就是那种十年没动过的存量系统，
+             RPA 当年就是照着它录的脚本。
+   .ui-v2 —— 改版后的新界面。换成了现在国内保险/政务门户通行的设计语言
+             （蓝色顶栏、浅灰画布、白卡片、圆角蓝按钮）。
+
+   这次改版只换皮肤和主按钮的文案 / ID，页面结构、字段名、表单 action 全都
+   没动——正是这一点让写死选择器的 RPA 当场瘫痪，而靠语义定位的 Agent 依然
+   能把控件找回来。
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   v1：改版前
+   Deliberately dated styling -- it is a "legacy" system, after all.
+   -------------------------------------------------------------------------- */
 body {
   font-family: "Segoe UI", Tahoma, sans-serif;
   background: #c8d0d8;
@@ -65,4 +81,144 @@ button:active {
   font-size: 12px;
   padding: 6px 12px;
   text-align: center;
+}
+
+/* --------------------------------------------------------------------------
+   v2：改版后 —— 现代保险门户设计语言
+   主色 #4B76FC · 深蓝 #3D38FD · 画布 #EDEFF1 · 卡片 #FFFFFF
+   -------------------------------------------------------------------------- */
+body.ui-v2 {
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #edeff1;
+  color: #1f2329;
+  padding: 0 0 48px;
+  line-height: 1.7;
+}
+
+/* 顶部蓝条：占满整行，卡片从它下面开始 */
+body.ui-v2 .titlebar {
+  background: #4b76fc;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 0 24px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+body.ui-v2 .titlebar::before {
+  content: "◎";
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 50%;
+  background: #fff;
+  color: #4b76fc;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+}
+
+/* 白卡片浮在浅灰画布上 */
+body.ui-v2 .frame {
+  max-width: none;
+  margin: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+body.ui-v2 .mockbanner {
+  border-bottom-color: #f0e0b4;
+  padding: 8px 12px;
+}
+body.ui-v2 .claim-form,
+body.ui-v2 .result {
+  max-width: 560px;
+  margin: 24px auto 0;
+  background: #fff;
+  border: 1px solid #e3e6ea;
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(31, 35, 41, 0.04);
+  padding: 28px 32px 32px;
+}
+
+/* 表单：门户通行的输入框样式 */
+body.ui-v2 .claim-form label {
+  font-size: 14px;
+  color: #5a6068;
+  margin-bottom: 18px;
+}
+body.ui-v2 .claim-form input {
+  margin-top: 6px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 14px;
+  color: #1f2329;
+  border: 1px solid #d3d7dd;
+  border-radius: 4px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+body.ui-v2 .claim-form input:focus {
+  outline: none;
+  border-color: #4b76fc;
+  box-shadow: 0 0 0 3px #e8edff;
+}
+body.ui-v2 .claim-form input[readonly] {
+  background: #f7f8fa;
+  color: #919192;
+}
+
+/* 主按钮：实心蓝；次按钮：描边 */
+body.ui-v2 button {
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 11px 32px;
+  margin-top: 8px;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+body.ui-v2 button[type="submit"] {
+  background: #4b76fc;
+  border: 1px solid #4b76fc;
+  color: #fff;
+}
+body.ui-v2 button[type="submit"]:hover {
+  background: #2f55d4;
+  border-color: #2f55d4;
+  box-shadow: 0 3px 10px rgba(75, 118, 252, 0.28);
+}
+body.ui-v2 button[type="button"] {
+  background: #fff;
+  border: 1px solid #d3d7dd;
+  color: #5a6068;
+  margin-left: 10px;
+}
+body.ui-v2 button[type="button"]:hover {
+  border-color: #4b76fc;
+  color: #4b76fc;
+}
+body.ui-v2 button:active {
+  border-style: solid;
+}
+
+/* 结果页 */
+body.ui-v2 .result-badge {
+  background: #e7f6ec;
+  color: #16a34a;
+  border: 1px solid #b9e6c9;
+  border-radius: 3px;
+  padding: 5px 14px;
+  letter-spacing: 0.06em;
+  margin-bottom: 16px;
+}
+body.ui-v2 .result p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #5a6068;
+}
+body.ui-v2 .result strong {
+  color: #1f2329;
 }

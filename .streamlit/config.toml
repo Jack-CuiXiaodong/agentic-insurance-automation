@@ -1,0 +1,13 @@
+# 视觉风格对齐国内保险门户（服务大厅）：主色蓝、浅灰画布、白卡片。
+[theme]
+base = "light"
+primaryColor = "#4B76FC"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F4F7FF"
+textColor = "#1F2329"
+
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false

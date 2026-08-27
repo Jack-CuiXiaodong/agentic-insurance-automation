@@ -5,7 +5,7 @@
   <title>增值税发票查验平台（本地模拟）</title>
   <link rel="stylesheet" href="/static/legacy.css" />
 </head>
-<body>
+<body class="ui-{{ 'v2' if ui == 'v2' else 'v1' }}">
   <div class="frame">
     <div class="titlebar">增值税发票查验平台 &mdash; 界面版本 v{{ '2' if ui == 'v2' else '1' }}</div>
     <div class="mockbanner">
