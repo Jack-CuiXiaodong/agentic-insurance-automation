@@ -73,22 +73,22 @@ def step1_config() -> None:
 
 # ---------------------------------------------------------------- step 2
 def step2_data() -> None:
-    title(2, "数据层 —— 保险业务数据从哪来", "Data: the insurance backend", "insurance/facio_client.py + data/demo_claims.json")
-    from insurance.facio_client import get_provider
+    title(2, "数据层 —— 保险业务数据从哪来", "Data: the insurance backend", "insurance/carrier_client.py + data/demo_claims.json")
+    from insurance.carrier_client import get_provider
 
     p = get_provider()
     note(f"当前 provider = {p.name}（抽象类 InsuranceProvider 的一个实现）",
          "换成真实保司 API = 再写一个实现，agent 代码一行不用改。")
-    claim = p.get_claim("CLM-001")
-    out("get_claim('CLM-001')", claim)
-    out("get_policy('POL-001')", p.get_policy("POL-001"))
-    out("get_claim_history('POL-001')", p.get_claim_history("POL-001"))
+    claim = p.get_claim("BX-2024-0001")
+    out("get_claim('BX-2024-0001')", claim)
+    out("get_policy('BD-2024-0001')", p.get_policy("BD-2024-0001"))
+    out("get_claim_history('BD-2024-0001')", p.get_claim_history("BD-2024-0001"))
     note("", "三个 demo 案例的差别只有两个字段：")
-    for cid in ("CLM-001", "CLM-002", "CLM-003"):
+    for cid in ("BX-2024-0001", "BX-2024-0002", "BX-2024-0003"):
         c = p.get_claim(cid)
-        note(f"  {cid}: amount={c['amount']:>6,}  legacy_ui_variant={c['legacy_ui_variant']}")
-    note("  → CLM-002 金额超限 → 触发人工审批",
-         "  → CLM-003 legacy 界面变成 v2 → 触发 RPA 失败 → 浏览器自愈")
+        note(f"  {cid}: 金额=¥{c['amount']:>7,}  查验平台界面={c['invoice_platform_ui']}")
+    note("  → BX-2024-0002 金额超 1 万自动核赔限额 → 转人工核赔",
+         "  → BX-2024-0003 查验平台改版成 v2 → RPA 脆断 → 浏览器自愈")
 
 
 # ---------------------------------------------------------------- step 3
@@ -102,7 +102,7 @@ def step3_rag() -> None:
          "纯 Python，无外部服务、无网络、结果确定。")
     out(f"切出来 {len(chunks)} 个知识块", [f"{c.source} # {c.heading}" for c in chunks])
 
-    q = "claim amount 12000 auto processing limit approval"
+    q = "赔付金额 86000 元 超过自动核赔限额 转人工核赔"
     r = get_retriever()
     hits = r.search(q, k=3)
     out(f"retriever={r.name}  search({q!r}, k=3)",
@@ -115,19 +115,19 @@ def step3_rag() -> None:
 # ---------------------------------------------------------------- step 4
 def step4_risk() -> None:
     title(4, "决策层 —— 确定性风险引擎（LLM 碰不到）", "Risk engine: deterministic, never the LLM", "risk/engine.py")
-    from insurance.facio_client import get_provider
+    from insurance.carrier_client import get_provider
     from risk.engine import AUTO_LIMIT, assess_risk, decide
 
-    note(f"这是纯函数：(claim, policy, history) → 分数 + 决策。没有任何 LLM 参与。",
-         f"唯一的业务常量：AUTO_LIMIT = EUR {AUTO_LIMIT:,}（自动处理金额上限）")
+    note(f"这是纯函数：(报案, 保单, 历史出险) → 分数 + 核赔结论。没有任何 LLM 参与。",
+         f"核心业务常量：AUTO_LIMIT = ¥{AUTO_LIMIT:,}（自动核赔金额上限）")
     p = get_provider()
-    for cid in ("CLM-001", "CLM-002", "CLM-003"):
+    for cid in ("BX-2024-0001", "BX-2024-0002", "BX-2024-0003"):
         c = p.get_claim(cid)
         pol = p.get_policy(c["policy_id"])
         hist = p.get_claim_history(c["policy_id"])
         risk = assess_risk(c, pol, hist)
         dec = decide(c, pol, risk)
-        out(f"{cid}  (EUR {c['amount']:,})",
+        out(f"{cid}  (¥{c['amount']:,})",
             {"risk": risk, "decision": dec["decision"], "reasons": dec["reasons"]})
     note("", "★ 项目最核心的设计原则：",
          "  「动钱的那个数字，永远不由 LLM 编造。」",
@@ -146,8 +146,8 @@ def step5_router() -> None:
     out("路由表 ROUTES", [f"{a}  {b}" for a, b in ROUTES])
 
     print("\n  ▶ 拿一个空 state，一步步喂数据，看它怎么变化：")
-    s = AgentState(task="Process claim CLM-002", claim_id="CLM-002")
-    from insurance.facio_client import get_provider
+    s = AgentState(task="处理报案 BX-2024-0002", claim_id="BX-2024-0002")
+    from insurance.carrier_client import get_provider
     p = get_provider()
 
     def show(tag: str) -> None:
@@ -155,12 +155,12 @@ def step5_router() -> None:
         print(f"    [{pad(tag, 22)}] next = {str(tool):<24} ({why})")
 
     show("空状态")
-    s.claim = p.get_claim("CLM-002");            show("有 claim 了")
-    s.policy = p.get_policy("POL-002");          show("有 policy 了")
-    s.claim_history = p.get_claim_history("POL-002"); show("有 history 了")
+    s.claim = p.get_claim("BX-2024-0002");       show("有报案了")
+    s.policy = p.get_policy("BD-2024-0002");     show("有保单了")
+    s.claim_history = p.get_claim_history("BD-2024-0002"); show("有历史出险了")
     s.retrieved_rules = [];                      show("有 RAG 证据了")
     s.decision = "HUMAN_REVIEW";                 show("算完风险=需人工")
-    s.human_request = {"amount": 12000};         show("已发出审批请求")
+    s.human_request = {"amount": 86000};         show("已发出审批请求")
     print(f"    {'':26}  run_status = {run_status(s)}   ← 循环在这里干净地暂停")
     s.human_decision = "APPROVE";                show("人工点了 APPROVE")
     s.rpa_result = {"success": True};            show("RPA 成功")
@@ -203,7 +203,7 @@ def step7_llm() -> None:
     out("当前激活的后端", llm.name)
 
     from agent.state import AgentState
-    s = AgentState(task="Process claim CLM-001", claim_id="CLM-001")
+    s = AgentState(task="处理报案 BX-2024-0001", claim_id="BX-2024-0001")
     d = llm.decide(system_prompt="", transcript=[], tools_schema=[], state=s)
     out("对空状态问「下一步做什么」",
         {"tool_calls": [c.name for c in d.tool_calls], "reasoning": d.reasoning, "is_final": d.is_final})
@@ -230,22 +230,22 @@ def step8_loop() -> None:
     manager.ensure_running()
 
     print("\n" + "  " + "─" * (W - 4))
-    print("  CASE 1 · CLM-001 —— 低风险直通")
+    print("  案例 1 · BX-2024-0001 —— 低风险快速直通")
     print("  " + "─" * (W - 4))
-    r1 = run_agent("Process claim CLM-001", claim_id="CLM-001")
+    r1 = run_agent("处理报案 BX-2024-0001", claim_id="BX-2024-0001")
     for line in r1.trace.as_list():
         print(f"    {line}")
     print(f"\n    status={r1.status}   tools={' → '.join(r1.state.executed_tools)}")
     print(f"    最终: {r1.state.final_summary}")
 
     print("\n" + "  " + "─" * (W - 4))
-    print("  CASE 2 · CLM-002 —— 高金额，卡在人工审批")
+    print("  案例 2 · BX-2024-0002 —— 金额超限，卡在人工核赔")
     print("  " + "─" * (W - 4))
-    r2 = run_agent("Process claim CLM-002", claim_id="CLM-002")
+    r2 = run_agent("处理报案 BX-2024-0002", claim_id="BX-2024-0002")
     for line in r2.trace.as_list():
         print(f"    {line}")
     print(f"\n    status={r2.status}  ← {'暂停，等人' if r2.status == AWAITING_HUMAN else r2.status}")
-    out("交给理赔员看的审批包 human_request", r2.state.human_request)
+    out("交给核赔员看的审批包 human_request", r2.state.human_request)
 
     print("\n  ▶ 护栏验证：假装有个不听话的 LLM，硬要在没审批时调 execute_rpa")
     import copy
@@ -270,22 +270,22 @@ def step8_loop() -> None:
 
     print("\n  ▶ 人工点 APPROVE 后续跑（同一个 state、同一条 trace）：")
     seen = len(r2.trace.as_list())          # 先记长度：trace 是同一个对象，续跑后会变长
-    r3 = run_agent("Process claim CLM-002", state=r2.state, trace=r2.trace, human_decision="APPROVE")
+    r3 = run_agent("处理报案 BX-2024-0002", state=r2.state, trace=r2.trace, human_decision="APPROVE")
     for line in r3.trace.as_list()[seen:]:
         print(f"    {line}")
     print(f"\n    最终: {r3.state.final_summary}")
-    note("", "★ 注意：续跑没有重新取 claim / 重新算风险。",
+    note("", "★ 注意：续跑没有重新取报案 / 重新算风险。",
          "  router 从 AgentState 重新推导下一步，已经做过的自动跳过。")
 
 
 # ---------------------------------------------------------------- step 9
 def step9_rpa() -> None:
     title(9, "执行层 —— RPA 脆断 → 浏览器自愈", "RPA breaks, the browser recovers", "rpa/mock_rpa.py + browser/recovery.py + legacy_app/")
-    note("这一步要真起一个 Flask「遗留系统」+ 真开 Chromium。",
+    note("这一步要真起一个 Flask「增值税发票查验平台（本地模拟）」+ 真开 Chromium。",
          "",
-         "  legacy_app  ?ui=v1 → 按钮 #submit-claim-btn 「Submit Claim」",
-         "              ?ui=v2 → 按钮 #confirm-submit-btn「Confirm & Submit Claim」",
-         "  mock_rpa    写死了 #submit-claim-btn —— v1 能跑，v2 必炸（这是故意的）",
+         "  legacy_app  ?ui=v1 → 按钮 #verify-invoice-btn 「查验」",
+         "              ?ui=v2 → 按钮 #check-invoice-btn  「查验发票信息」",
+         "  mock_rpa    写死了 #verify-invoice-btn —— v1 能跑，v2 必炸（这是故意的）",
          "  recovery    不认死选择器，读实时 DOM，按语义找等价控件")
 
     from legacy_app import manager
@@ -297,9 +297,9 @@ def step9_rpa() -> None:
 
     from agent.agent import run_agent
     print("\n  " + "─" * (W - 4))
-    print("  CASE 3 · CLM-003 —— legacy 界面已改成 v2")
+    print("  案例 3 · BX-2024-0003 —— 查验平台已改版成 v2")
     print("  " + "─" * (W - 4))
-    r = run_agent("Process claim CLM-003", claim_id="CLM-003")
+    r = run_agent("处理报案 BX-2024-0003", claim_id="BX-2024-0003")
     for line in r.trace.as_list():
         print(f"    {line}")
     print(f"\n    最终: {r.state.final_summary}")
@@ -315,10 +315,10 @@ def step10_ui() -> None:
     title(10, "界面层 —— 把 trace 摆给人看", "UI: surface the trace to a human", "ui/streamlit_app.py + app.py")
     note("app.py 是唯一入口，会自己把自己重新拉起在 streamlit 下。",
          "UI 做四件事：",
-         "  1. 选 case、跑 agent",
+         "  1. 选报案、跑 agent",
          "  2. 完整渲染执行 trace（本项目的一等交付物）",
-         "  3. 摊开 RAG 证据给理赔员看",
-         "  4. 人工审批面板 APPROVE / REJECT → 用同一个 state 续跑",
+         "  3. 摊开 RAG 依据给核赔员看",
+         "  4. 人工核赔面板 通过 / 拒赔 → 用同一个 state 续跑",
          "",
          "注意 ui/streamlit_app.py 里的 ThreadPoolExecutor：",
          "  Playwright 的同步 API 不能和 Streamlit 的事件循环同线程，",

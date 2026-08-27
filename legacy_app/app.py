@@ -1,15 +1,22 @@
-"""A tiny stand-in for a *legacy* claim-management web system.
+"""A local stand-in for a VAT-invoice verification platform.
 
-This exists so the RPA / recovery demo has something real to automate. It ships
-two UI variants of the same "Submit claim" screen:
+This exists so the RPA / recovery demo has something real to automate. It is a
+**mock**: synthetic data, no branding, and no connection to any real
+verification service. It stands in for the class of system that makes this whole
+project's point -- a web-only government/utility portal with no data interface,
+which back-office RPA has to drive by clicking, and whose page structure changes
+without notice.
 
-* ``?ui=v1`` -- the original screen. The submit control is
-  ``#submit-claim-btn`` labelled **"Submit Claim"**.
-* ``?ui=v2`` -- the screen *after an unannounced UI change*. The control is now
-  ``#confirm-submit-btn`` labelled **"Confirm & Submit Claim"**.
+Two UI variants of the same "查验" screen ship here:
 
-A brittle, selector-based RPA workflow that targets ``#submit-claim-btn`` works
-on v1 and breaks on v2 -- which is exactly the failure the agent recovers from.
+* ``?ui=v1`` -- the original screen. The action control is
+  ``#verify-invoice-btn`` labelled **"查验"**.
+* ``?ui=v2`` -- the screen *after an unannounced redesign*. The control is now
+  ``#check-invoice-btn`` labelled **"查验发票信息"**.
+
+A brittle, selector-based RPA workflow that targets ``#verify-invoice-btn``
+works on v1 and breaks on v2 -- which is exactly the failure the agent recovers
+from.
 
 Run standalone:  ``python legacy_app/app.py``
 """
@@ -24,22 +31,26 @@ app = Flask(__name__)
 
 
 @app.route("/", methods=["GET"])
-def claim_form():
-    ui = request.args.get("ui", "v1")
-    claim_id = request.args.get("claim_id", "")
-    amount = request.args.get("amount", "")
+def invoice_check():
     return render_template(
-        "claim_form.html", ui=ui, claim_id=claim_id, amount=amount
+        "invoice_check.html",
+        ui=request.args.get("ui", "v1"),
+        claim_id=request.args.get("claim_id", ""),
+        invoice_code=request.args.get("invoice_code", ""),
+        invoice_no=request.args.get("invoice_no", ""),
+        amount=request.args.get("amount", ""),
     )
 
 
-@app.route("/submit", methods=["POST"])
-def submit():
-    claim_id = request.form.get("claim_id", "")
-    amount = request.form.get("amount", "")
-    ui = request.form.get("ui", "v1")
+@app.route("/verify", methods=["POST"])
+def verify():
     return render_template(
-        "submitted.html", claim_id=claim_id, amount=amount, ui=ui
+        "verified.html",
+        claim_id=request.form.get("claim_id", ""),
+        invoice_code=request.form.get("invoice_code", ""),
+        invoice_no=request.form.get("invoice_no", ""),
+        amount=request.form.get("amount", ""),
+        ui=request.form.get("ui", "v1"),
     )
 
 
@@ -49,7 +60,7 @@ def health():
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Legacy claim management system")
+    parser = argparse.ArgumentParser(description="增值税发票查验平台（本地模拟）")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=5001)
     args = parser.parse_args()

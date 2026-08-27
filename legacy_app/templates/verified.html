@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>发票查验结果</title>
+  <link rel="stylesheet" href="/static/legacy.css" />
+</head>
+<body>
+  <div class="frame">
+    <div class="titlebar">增值税发票查验平台</div>
+    <div class="mockbanner">
+      本地模拟页面 &middot; 合成数据 &middot; 非任何真实查验平台，仅用于演示 RPA 与自愈
+    </div>
+    <div class="result" id="result" data-status="VERIFIED">
+      <div class="result-badge">查验一致</div>
+      <p>发票代码 <strong>{{ invoice_code }}</strong></p>
+      <p>发票号码 <strong id="result-invoice-no">{{ invoice_no }}</strong></p>
+      <p>开票金额 <strong>{{ amount }}</strong></p>
+      <p>关联报案 <strong id="result-claim-id">{{ claim_id }}</strong></p>
+    </div>
+  </div>
+</body>
+</html>

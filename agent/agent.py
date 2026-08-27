@@ -61,9 +61,9 @@ class Agent:
             and state.human_decision != "APPROVE"
         ):
             if state.human_request is None:
-                self.trace.warn("Guardrail: RPA blocked -- human approval required first")
+                self.trace.warn("护栏：RPA 已拦截 —— 必须先经核赔员审批")
                 return "request_human_approval"
-            self.trace.warn("Guardrail: RPA blocked -- awaiting human decision")
+            self.trace.warn("护栏：RPA 已拦截 —— 等待核赔员结论")
             return "__noop__"
         return tool_name
 
@@ -71,7 +71,7 @@ class Agent:
     def run(self, state: AgentState) -> AgentResult:
         tools_schema = registry.tool_schemas()
         if not self.trace.events:  # keep one continuous trace across a human pause/resume
-            self.trace.add(f"Agent started (LLM backend: {self.llm.name})")
+            self.trace.add(f"Agent 启动（LLM 后端：{self.llm.name}）")
 
         for _ in range(MAX_STEPS):
             # Clean pause point for human-in-the-loop.
@@ -100,9 +100,9 @@ class Agent:
         status = run_status(state)
         state.final_summary = build_final_summary(state)
         if status == DONE:
-            self.trace.add(f"Agent finished: {state.final_summary}")
+            self.trace.add(f"Agent 结束：{state.final_summary}")
         else:
-            self.trace.warn("Paused: awaiting human approval")
+            self.trace.warn("已暂停：等待核赔员审批")
         return AgentResult(status=status, state=state, trace=self.trace, llm_name=self.llm.name)
 
 
@@ -110,25 +110,24 @@ def build_final_summary(state: AgentState) -> str:
     """A deterministic, human-readable outcome line (mode-independent)."""
     cid = state.claim_id or "?"
     if state.decision == "REJECT":
-        return f"{cid}: REJECTED -- policy not in force."
+        return f"{cid}：拒赔 —— 保单不在有效期内。"
     if state.human_decision == "REJECT":
-        return f"{cid}: REJECTED by human adjuster."
+        return f"{cid}：核赔员拒赔。"
     if state.recovery_result and state.recovery_result.get("success"):
-        return f"{cid}: RPA failed on a changed UI; recovered via browser automation -> SUCCESS."
+        return f"{cid}：查验平台改版导致 RPA 中断，浏览器自愈完成验票 → 自动核赔通过。"
     if state.rpa_result and state.rpa_result.get("success"):
-        via = "after human approval" if state.human_decision == "APPROVE" else "straight-through"
-        return f"{cid}: processed via RPA ({via}) -> SUCCESS."
+        via = "核赔员审批后" if state.human_decision == "APPROVE" else "快速理赔直通"
+        return f"{cid}：发票查验通过（{via}）→ 核赔完成。"
     if run_status(state) == AWAITING_HUMAN:
         amt = (state.human_request or {}).get("amount", "")
-        cur = (state.human_request or {}).get("currency", "EUR")
-        return f"{cid}: awaiting human approval ({cur} {amt})."
+        return f"{cid}：等待核赔员审批（¥{amt:,}）。" if isinstance(amt, (int, float)) else f"{cid}：等待核赔员审批。"
     if state.rpa_result and not state.rpa_result.get("success"):
-        return f"{cid}: RPA failed and could not be recovered."
-    return f"{cid}: no terminal action taken."
+        return f"{cid}：RPA 失败且未能自愈。"
+    return f"{cid}：未产生终态动作。"
 
 
 # -- convenience --------------------------------------------------------------
-_CLAIM_RE = re.compile(r"(CLM-\d+)", re.IGNORECASE)
+_CLAIM_RE = re.compile(r"(BX-\d{4}-\d+)", re.IGNORECASE)
 
 
 def parse_claim_id(task: str) -> str:

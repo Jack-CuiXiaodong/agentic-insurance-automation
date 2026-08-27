@@ -2,14 +2,14 @@
 
 Why this file exists
 --------------------
-Every insurance-provider-specific detail lives *here* and nowhere else. The
-Agent and tools depend only on the :class:`InsuranceProvider` interface, so the
-backend can be swapped (mock -> Facio sandbox -> a real carrier API) without
-touching agent logic.
+Every carrier-specific detail lives *here* and nowhere else. The Agent and tools
+depend only on the :class:`InsuranceProvider` interface, so the backend can be
+swapped (offline mock -> a carrier's core policy/claims system) without touching
+agent logic.
 
-This public proof-of-concept ships with a :class:`MockInsuranceProvider` backed
-by synthetic data. A :class:`FacioInsuranceProvider` skeleton shows exactly
-where a public insurance sandbox would plug in. No credentials are ever
+This public proof-of-concept ships with a :class:`MockCarrierProvider` backed by
+synthetic motor-claim data. :class:`CoreSystemProvider` is the skeleton showing
+exactly where a real carrier core system plugs in. No credentials are ever
 hard-coded; everything comes from environment variables via ``config.settings``.
 """
 
@@ -26,7 +26,7 @@ _DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "demo_claims.
 
 
 class InsuranceError(Exception):
-    """Domain-level error (claim/policy not found, backend unavailable...)."""
+    """Domain-level error (报案/保单 not found, backend unavailable...)."""
 
 
 class InsuranceProvider(ABC):
@@ -47,12 +47,12 @@ class InsuranceProvider(ABC):
         ...
 
 
-class MockInsuranceProvider(InsuranceProvider):
+class MockCarrierProvider(InsuranceProvider):
     """Synthetic, fully offline provider used by the public PoC.
 
-    The data is intentionally not tied to any real carrier -- see the README
-    disclaimer. It is deterministic, which is exactly what a reliable demo
-    needs.
+    The data is intentionally not tied to any real carrier, policy, vehicle or
+    invoice -- see the README disclaimer. It is deterministic, which is exactly
+    what a reliable demo needs.
     """
 
     name = "mock"
@@ -64,39 +64,43 @@ class MockInsuranceProvider(InsuranceProvider):
     def get_claim(self, claim_id: str) -> Dict[str, Any]:
         claim = self._data["claims"].get(claim_id)
         if claim is None:
-            raise InsuranceError(f"Claim not found: {claim_id}")
+            raise InsuranceError(f"报案不存在：{claim_id}")
         return dict(claim)
 
     def get_policy(self, policy_id: str) -> Dict[str, Any]:
         policy = self._data["policies"].get(policy_id)
         if policy is None:
-            raise InsuranceError(f"Policy not found: {policy_id}")
+            raise InsuranceError(f"保单不存在：{policy_id}")
         return dict(policy)
 
     def get_claim_history(self, policy_id: str) -> List[Dict[str, Any]]:
         return list(self._data.get("claim_history", {}).get(policy_id, []))
 
 
-class FacioInsuranceProvider(InsuranceProvider):
-    """Skeleton adapter for Facio's public insurance sandbox.
+class CoreSystemProvider(InsuranceProvider):
+    """Skeleton adapter for a carrier's core policy/claims system.
 
-    This is the plug-in point for a real sandbox. It is deliberately thin: the
-    moment a sandbox endpoint + key are available, implement the request/response
-    mapping here and set ``INSURANCE_PROVIDER=facio`` in ``.env``. Until then it
+    This is the plug-in point for a real backend. It is deliberately thin: the
+    moment an endpoint + credential are available, implement the request/response
+    mapping here and set ``INSURANCE_PROVIDER=core`` in ``.env``. Until then it
     fails loudly rather than pretending to work.
 
-    Docs: https://developers.facio.io/
+    Note that a carrier core system may expose no HTTP API at all. In that case
+    this is *not* the seam to force it through -- implement a provider that
+    drives the system's own screens with the shared Playwright helper in
+    ``browser/driver.py`` instead. The interface below stays identical either
+    way, which is the whole point of putting it here.
     """
 
-    name = "facio"
+    name = "core"
 
     def __init__(self) -> None:
-        self.base_url = settings.facio_base_url.rstrip("/")
-        self.api_key = settings.facio_api_key
+        self.base_url = settings.core_api_base_url.rstrip("/")
+        self.api_key = settings.core_api_key
         if not self.api_key:
             raise InsuranceError(
-                "INSURANCE_PROVIDER=facio requires FACIO_API_KEY. "
-                "Set it in .env, or use the default mock provider."
+                "INSURANCE_PROVIDER=core 需要设置 CORE_API_KEY。"
+                "请在 .env 中配置，或改用默认的 mock provider。"
             )
 
     def _headers(self) -> Dict[str, str]:
@@ -107,12 +111,12 @@ class FacioInsuranceProvider(InsuranceProvider):
 
         resp = requests.get(f"{self.base_url}{path}", headers=self._headers(), timeout=15)
         if resp.status_code == 404:
-            raise InsuranceError(f"Not found via Facio: {path}")
+            raise InsuranceError(f"核心系统未找到：{path}")
         resp.raise_for_status()
         return resp.json()
 
     def get_claim(self, claim_id: str) -> Dict[str, Any]:  # pragma: no cover - network
-        # TODO: map the sandbox response schema onto our canonical claim shape.
+        # TODO: map the core system's response schema onto our canonical shape.
         return self._get(f"/claims/{claim_id}")
 
     def get_policy(self, policy_id: str) -> Dict[str, Any]:  # pragma: no cover - network
@@ -129,15 +133,15 @@ _PROVIDER_SINGLETON: Optional[InsuranceProvider] = None
 def get_provider() -> InsuranceProvider:
     """Return the configured provider (cached).
 
-    ``INSURANCE_PROVIDER=facio`` selects the sandbox adapter; anything else
+    ``INSURANCE_PROVIDER=core`` selects the core-system adapter; anything else
     (the default) selects the offline mock.
     """
     global _PROVIDER_SINGLETON
     if _PROVIDER_SINGLETON is not None:
         return _PROVIDER_SINGLETON
 
-    if settings.insurance_provider == "facio":
-        _PROVIDER_SINGLETON = FacioInsuranceProvider()
+    if settings.insurance_provider == "core":
+        _PROVIDER_SINGLETON = CoreSystemProvider()
     else:
-        _PROVIDER_SINGLETON = MockInsuranceProvider()
+        _PROVIDER_SINGLETON = MockCarrierProvider()
     return _PROVIDER_SINGLETON

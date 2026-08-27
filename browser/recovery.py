@@ -3,8 +3,8 @@
 When the brittle RPA workflow fails because the UI changed, the agent hands the
 task here. Unlike the RPA path, recovery does not depend on a recorded selector.
 It **inspects the live page**, enumerates the actionable controls, and picks the
-one that is *semantically* equivalent to the intended action ("submit the
-claim") -- preferring accessible, role-based selectors over coordinates.
+one that is *semantically* equivalent to the intended action ("查验这张发票")
+-- preferring accessible, role-based selectors over coordinates.
 
 This is the concrete difference the demo is built to show:
 
@@ -16,12 +16,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
+from urllib.parse import urlencode
 
 from browser.driver import page_session
 from config import settings
 
-# Words that indicate a "submit the claim" control, in priority order.
-_INTENT_KEYWORDS = ["submit", "confirm", "save", "send", "complete"]
+# Words that indicate the intended "verify / submit" control, in priority order.
+# Chinese first: the legacy screens this recovers against are Chinese, and a
+# Latin-only list scores every Chinese label at 0 -- recovery would report "no
+# semantically equivalent control found" on a page that plainly has one.
+_INTENT_KEYWORDS = [
+    "查验", "验真", "提交", "确认", "保存", "完成",
+    "submit", "confirm", "save", "send", "complete",
+]
 
 
 @dataclass
@@ -69,41 +76,52 @@ def _inspect_buttons(page) -> List[Dict[str, str]]:
     return buttons
 
 
-def recover_submit(
+def recover_action(
     claim_id: str,
     amount: str,
+    invoice_code: str = "",
+    invoice_no: str = "",
     ui_variant: str = "v2",
     base_url: str | None = None,
 ) -> RecoveryResult:
-    """Inspect the changed screen and complete the submit action semantically."""
+    """Inspect the changed screen and complete the intended action semantically."""
     base_url = base_url or settings.legacy_base_url
-    url = f"{base_url}/?ui={ui_variant}&claim_id={claim_id}&amount={amount}"
+    query = urlencode(
+        {
+            "ui": ui_variant,
+            "claim_id": claim_id,
+            "invoice_code": invoice_code,
+            "invoice_no": invoice_no,
+            "amount": amount,
+        }
+    )
+    url = f"{base_url}/?{query}"
     result = RecoveryResult(success=False)
 
     with page_session(url) as page:
-        result.steps.append("Inspecting current page DOM")
+        result.steps.append("读取当前页面 DOM")
         candidates = _inspect_buttons(page)
         result.candidates = candidates
         if not candidates:
-            result.steps.append("No actionable controls found")
+            result.steps.append("页面上找不到可操作控件")
             return result
 
         # Semantic match: pick the highest-scoring control for the submit intent.
         best = max(candidates, key=lambda c: _score_label(c["label"]))
         if _score_label(best["label"]) == 0:
-            result.steps.append("No semantically equivalent control found")
+            result.steps.append("未找到语义等价的控件")
             return result
 
         result.matched_label = best["label"]
-        result.steps.append(f"Semantic match found: \"{best['label']}\"")
+        result.steps.append(f"语义匹配命中：「{best['label']}」")
 
         # Prefer an accessible, role-based selector over a brittle CSS id.
-        result.steps.append("Selecting control via role=button + accessible name")
+        result.steps.append("按 role=button + 可访问名称定位控件")
         page.get_by_role("button", name=best["label"]).click(timeout=3000)
         page.wait_for_selector("#result", timeout=5000)
         status = page.locator("#result").get_attribute("data-status")
 
-        result.success = status == "SUBMITTED"
+        result.success = status == "VERIFIED"
         result.details = {"result_status": status, "selector_strategy": "role=button[name]"}
-        result.steps.append("Alternative action executed" if result.success else "Action did not confirm")
+        result.steps.append("替代路径执行成功" if result.success else "操作未确认成功")
     return result
