@@ -280,7 +280,7 @@ Agent 是基于**检索到的依据**做决策，不是基于模型记忆；这�
 
 ## 8. RPA + 浏览器自愈
 
-`rpa/interface.py` 定义了与产品无关的 `RPAAdapter.execute_workflow`。这里唯一的实现是
+`rpa/interface.py` 定义了与产品无关的 `RPAAdapter.execute_workflow`。默认实现是
 `MockRPAAdapter`，它通过**一个写死的选择器**驱动本地模拟的查验平台——刻意还原经典的
 脆弱 RPA。页面一改，它就报"元素未找到"。
 
@@ -294,6 +294,33 @@ Playwright = 读取 + 适应，能扛过同一次改版
 
 > 意图关键词表（`_INTENT_KEYWORDS`）中文在前：这些页面是中文的，纯英文词表会把
 > 每个中文按钮都打成 0 分，自愈会在一个明明有按钮的页面上报告"未找到"。
+
+### 接真实 RPA：影刀（ShadowBot）
+
+`RPAAdapter` 一直被说成「以后能换成企业 RPA 的接缝」。`rpa/shadowbot.py` 是第一个
+真的接上去的实现——它通过影刀客户端自带的命令行触发一个已发布的影刀应用，轮询到
+终态，再把结果翻译回同一个 `RPAResult`。
+
+```bash
+RPA_PROVIDER=shadowbot          # 默认仍是 mock
+SHADOWBOT_APP_ID=<用 `console app` 查出来的应用 ID>
+```
+
+换后端**只动这两个环境变量**：Agent 循环、`tools/registry.py` 的工具目录、
+`risk/engine.py` 的护栏，一行都不用改。这正是当初把接缝画在这里的理由。
+
+三个刻意的克制，写在 `rpa/shadowbot.py` 的模块文档里：
+
+- **不自动登录。** 预检发现没有影刀会话就直接失败，让运维去手工登录。无人值守的
+  执行器不该持有账号密码——这比「跑得更顺」重要。
+- **不臆造入参写法。** 影刀官方文档要求现场 `console task run --help` 确认入参
+  flag，所以默认**不传业务参数**，配了 `SHADOWBOT_INPUT_FLAG` 才传。
+- **不假设 JSON 外壳。** 按候选键名在整棵返回里找 `task_id` / `status`，认不出的
+  任务状态一律按「还在跑」处理，绝不当成成功。
+
+CLI 本身怎么用（登录恢复、`console app`、`console task` 各子命令）见
+`.claude/skills/shadowbot-cli/`——那是影刀官方 skills 仓库的逐字副本加一份平台路由，
+Claude Code 在本仓库里可以直接用它手工联调。
 
 ## 9. 人工核赔闸门 · Human-in-the-loop
 
@@ -330,7 +357,7 @@ streamlit run app.py      # 或：python app.py
 > 案例 2、3 不需要浏览器；只有 Demo 1 的浏览器自愈需要。
 
 ```bash
-# 测试（不需要浏览器 —— 38 条）
+# 测试（不需要浏览器 —— 63 条）
 pytest -q
 
 # 分层导读：一次只点亮架构的一层
@@ -354,6 +381,11 @@ python walkthrough.py 1-8    # 前 8 层，不需要浏览器
 | `INSURANCE_PROVIDER` | `mock` | `mock` / `core` |
 | `CORE_API_BASE_URL` / `CORE_API_KEY` | — | 仅在接保险公司核心系统时需要 |
 | `LEGACY_HOST` / `LEGACY_PORT` | `127.0.0.1` / `5001` | 模拟查验平台 |
+| `RPA_PROVIDER` | `mock` | `mock` / `shadowbot`（影刀） |
+| `SHADOWBOT_APP_ID` | — | 要触发的影刀应用 ID，`shadowbot` 模式必填 |
+| `SHADOWBOT_CLI` | — | 影刀 CLI 的绝对路径，留空则按平台在 PATH 上找 |
+| `SHADOWBOT_INPUT_FLAG` | — | 传业务入参的 flag，留空则不传（见上文「三个克制」）|
+| `SHADOWBOT_TIMEOUT` / `SHADOWBOT_POLL_INTERVAL` | `300` / `2` | 单次任务最长等待与轮询间隔（秒）|
 | `PLAYWRIGHT_HEADLESS` | `true` | 现场演示可设 false 看真实点击 |
 | `PLAYWRIGHT_CHROMIUM_PATH` | — | 指定已有的 Chromium/Chrome，用于沙箱 / CI 镜像 |
 
@@ -378,13 +410,14 @@ agentic-insurance-automation/
 ├── insurance/             # 保险公司数据抽象：mock + 核心系统骨架
 ├── rag/                   # 切块 + 检索（中文词法默认，FAISS 骨架）
 ├── risk/                  # 确定性风险与核赔结论引擎
-├── rpa/                   # RPAAdapter 接口 + MockRPAAdapter
+├── rpa/                   # RPAAdapter 接口 + MockRPAAdapter + 影刀适配器 + 后端工厂
 ├── browser/               # Playwright 驱动 + 自适应自愈
 ├── legacy_app/            # 模拟的增值税发票查验平台（v1/v2 两版界面）
 ├── knowledge/             # 中文业务规则（RAG 数据源）
 ├── data/                  # 合成演示报案
 ├── ui/                    # Streamlit 界面
 ├── docs/                  # GitHub Pages 落地页
+├── .claude/skills/        # 影刀 CLI 技能（上游逐字副本 + 平台路由）
 └── tests/                 # pytest 套件
 ```
 
@@ -408,13 +441,16 @@ agentic-insurance-automation/
 ## 14. 局限 · Limitations
 
 - 保险公司后端是合成 mock；核心系统适配器是骨架。
-- RPA 层是 **mock 适配器**，不是真实的企业 RPA 产品。
+- RPA 层默认是 **mock 适配器**，不是真实的企业 RPA 产品。影刀适配器
+  (`rpa/shadowbot.py`) 的协议层有测试覆盖，但**尚未在装了影刀客户端的机器上联调过**
+  ——CLI 的 JSON 信封和任务状态字面量按候选键名兼容处理，真机上仍需确认一次。
 - 知识库规模小且经过整理；默认检索器是词法的（非语义向量）。
 - 查验平台是最小化的本地模拟，**不是**任何真实平台，也没有使用其任何标识。
 
 ## 15. 后续方向 · Future Work
 
-- 把真实企业 RPA 接入 `RPAAdapter`（UiPath / 艺赛旗 iS-RPA / 影刀 / Automation Anywhere）。
+- 在装了影刀客户端的机器上把 `rpa/shadowbot.py` 真机跑通，确认入参 flag 与状态字面量。
+- 按同样的方式再接一家企业 RPA（UiPath / 艺赛旗 iS-RPA / Automation Anywhere）。
 - 把保险公司核心系统接入 `insurance/carrier_client.py`。
 - 用 embeddings + FAISS 替换词法检索器（`FaissRetriever` 骨架已就位）。
 - 加入单证理解（OCR / 要素抽取）处理定损单与发票影像。

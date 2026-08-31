@@ -113,6 +113,32 @@ class Settings:
     legacy_host: str = field(default_factory=lambda: _env("LEGACY_HOST", "127.0.0.1"))
     legacy_port: int = field(default_factory=lambda: int(_env("LEGACY_PORT", "5001")))
 
+    # -- RPA execution backend ----------------------------------------------
+    # mock (default) = the local mock invoice platform driven by one brittle
+    # selector -- no RPA product needed, which is what keeps this repo runnable
+    # anywhere. shadowbot = 影刀, driven through its own CLI (see rpa/shadowbot.py
+    # and .claude/skills/shadowbot-cli/). The seam is RPAAdapter, so switching
+    # backends never touches the agent, the tool catalogue or the guardrails.
+    rpa_provider: str = field(default_factory=lambda: _env("RPA_PROVIDER", "mock").lower())
+    # Absolute path to the ShadowBot CLI, if it is not on PATH. Empty = resolve
+    # by platform (shadowbot.shell-cli.exe on Windows, shadowbot-cli elsewhere).
+    shadowbot_cli: str = field(default_factory=lambda: _env("SHADOWBOT_CLI"))
+    # The published 影刀 app the orchestration layer triggers. Find it with
+    # `console app`; there is no sane default, so shadowbot mode without it fails
+    # loudly rather than guessing an id.
+    shadowbot_app_id: str = field(default_factory=lambda: _env("SHADOWBOT_APP_ID"))
+    # How the CLI takes app inputs is not fixed in the public docs (they tell you
+    # to read `console task run --help` on the installed build), so we refuse to
+    # guess: empty = run the app with no inputs; set it (e.g. "--params") and the
+    # claim fields are appended as one JSON argument.
+    shadowbot_input_flag: str = field(default_factory=lambda: _env("SHADOWBOT_INPUT_FLAG"))
+    shadowbot_timeout: float = field(
+        default_factory=lambda: float(_env("SHADOWBOT_TIMEOUT", "300"))
+    )
+    shadowbot_poll_interval: float = field(
+        default_factory=lambda: float(_env("SHADOWBOT_POLL_INTERVAL", "2"))
+    )
+
     # -- Browser ------------------------------------------------------------
     playwright_headless: bool = field(
         default_factory=lambda: _env("PLAYWRIGHT_HEADLESS", "true").lower() != "false"

@@ -11,10 +11,15 @@ from typing import Any, Dict
 from agent.state import AgentState
 from agent.trace import Trace
 from browser.driver import BrowserUnavailable
+from rpa.factory import build_adapter
 from rpa.interface import RPAExecutionError
-from rpa.mock_rpa import WORKFLOW, MockRPAAdapter
+from rpa.mock_rpa import WORKFLOW
 
-_adapter = MockRPAAdapter()
+# Which RPA product actually runs the workflow is a deployment decision
+# (RPA_PROVIDER=mock | shadowbot), resolved once here. Everything below -- and
+# everything above, in the agent -- is written against RPAAdapter and does not
+# know or care which one it got.
+_adapter = build_adapter()
 
 
 def execute_rpa(state: AgentState, trace: Trace) -> Dict[str, Any]:

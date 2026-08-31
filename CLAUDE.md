@@ -19,7 +19,7 @@
 
 ```bash
 pip install -r requirements.txt
-python -m pytest -q          # 期望 40 passed
+python -m pytest -q          # 期望 63 passed
 python app.py                # 起 Streamlit（会自己把自己拉起在 streamlit 下）
 python walkthrough.py all    # 自底向上逐层导读，含真实浏览器
 ```
@@ -58,6 +58,34 @@ python walkthrough.py all    # 自底向上逐层导读，含真实浏览器
 
 **不要**把决策逻辑挪进知识库，也不要让检索结果去驱动金额判断。
 理由：规则文档应该好改，护栏不应该好改。改了这条，这个项目最值钱的论点就没了。
+
+---
+
+## 执行后端：mock 与影刀
+
+`RPA_PROVIDER` 决定 `RPAAdapter` 那一端接的是谁，`rpa/factory.py` 负责选：
+
+| 值 | 实现 | 需要什么 |
+|---|---|---|
+| `mock`（默认） | `rpa/mock_rpa.py` | 什么都不需要，本地模拟查验平台 |
+| `shadowbot` | `rpa/shadowbot.py` | 本机装好影刀客户端、已登录、配 `SHADOWBOT_APP_ID` |
+
+**默认必须永远是 `mock`。** 这个仓库要能在任何一台机器上零配置跑完两个 demo，
+影刀是可选项，不是新的前置依赖。
+
+**认不出的 `RPA_PROVIDER` 要报错，不许静默退回 mock。** 运维以为在跑影刀、
+实际在跑模拟页面，而且一切「正常」——这是这里最坏的失败方式。
+
+写影刀适配器时的三条纪律（模块文档里也写了，改之前先读）：
+
+1. **只用影刀官方文档里写明的命令。** 命令、子命令、flag、ID 一律不臆造。
+   入参 flag 官方要求现场 `console task run --help` 确认，所以默认不传业务参数。
+2. **不代为登录。** 没会话就失败，让人去登。适配器不持有凭据。
+3. **认不出的任务状态按「还在跑」处理。** 当成功是最坏的猜法。
+
+`.claude/skills/shadowbot-cli/references/` 下三份文件是 <https://github.com/ying-dao/skills>
+的**逐字副本**，不要局部修补——要更新就整份重新同步，办法写在同目录的
+`UPSTREAM.md` 里。我们自己维护的约定只在 `.claude/skills/shadowbot-cli/SKILL.md`。
 
 ---
 
@@ -121,7 +149,7 @@ headless、CI、测试必须全速，否则 40 个测试会莫名其妙变慢。
 
 ## 测试
 
-`tests/` 里 40 个测试，其中 `test_guardrail_blocks_rpa_bypass_on_high_value`
+`tests/` 里 63 个测试，其中 `test_guardrail_blocks_rpa_bypass_on_high_value`
 守着人工核赔闸门——它挂了说明护栏被绕开了，这是最不能妥协的一个。
 
 提交前跑 `python -m pytest -q`。改了浏览器层再跑一次 `python walkthrough.py 9`。
