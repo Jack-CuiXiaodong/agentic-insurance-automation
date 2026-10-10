@@ -46,9 +46,27 @@ class RPAResult:
 
 
 class RPAAdapter(ABC):
-    """Minimal, product-agnostic RPA contract."""
+    """Minimal, product-agnostic RPA contract.
+
+    A real enterprise product (影刀开放 API / 艺赛旗 / 来也 / 弘玑 / UiPath) only
+    ever needs to implement ``execute_workflow(name, params)`` -- that one
+    method is the entire integration surface, by design.
+
+    ``supports_shared_page`` is optional and off by default. It exists for the
+    *in-process* case (this mock, or anything else running inside this same
+    Python process) where handing the live Playwright ``Page`` object directly
+    is possible. A real RPA product runs out-of-process and has no Python
+    ``Page`` to hand over -- for that case, the adapter does not implement
+    this capability at all; instead, make the product expose its browser's CDP
+    (Chrome DevTools Protocol) endpoint, and have the recovery layer attach to
+    it with Playwright's ``connect_over_cdp`` to pick up the same page. A
+    desktop-app or online-banking target that has no browser at all needs a
+    different seam entirely -- the product's own UI-automation capability, or
+    a vision model reading the screen -- not this one.
+    """
 
     name: str = "abstract"
+    supports_shared_page: bool = False
 
     @abstractmethod
     def execute_workflow(self, workflow_name: str, parameters: Dict[str, Any]) -> RPAResult:

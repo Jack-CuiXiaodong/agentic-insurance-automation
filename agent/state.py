@@ -64,8 +64,20 @@ class AgentState:
     # JSON state the agent loop reasons over.
     evidence: Dict[str, bytes] = field(default_factory=dict, repr=False)
 
+    # Live, non-serializable objects a run may need across tool calls -- today
+    # just an open BrowserSession, so execute_rpa can fail on a page and
+    # browser_recover can pick up that *same* page instead of opening a new
+    # one. Never touches snapshot(): this holds live handles, not data.
+    runtime: Dict[str, Any] = field(default_factory=dict, repr=False)
+
     def record_tool(self, name: str) -> None:
         self.executed_tools.append(name)
+
+    def close_runtime(self) -> None:
+        """Release any live resources (browser session) this run opened."""
+        session = self.runtime.pop("browser_session", None)
+        if session is not None:
+            session.close()
 
     def add_evidence(self, name: str, png: Optional[bytes]) -> None:
         """Store a screenshot taken during this run, if one was captured."""

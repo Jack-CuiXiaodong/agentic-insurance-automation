@@ -434,29 +434,52 @@ def _evidence_panel(s: AgentState) -> None:
 
     if candidates:
         matched = rec.get("matched_label", "")
+        decision = rec.get("decision") or {}
+        tier_label = decision.get("tier_label", "")
+        status_label = decision.get("status_label", "")
+        best_sim = decision.get("best_similarity", 0)
+        margin = decision.get("margin", 0)
+        gate = (
+            f"{tier_label} · {status_label} · 置信度 {best_sim:.2f} · 领先第二名 {margin:.2f}"
+            if decision else ""
+        )
         st.markdown(
             '<div class="evidence-note">Agent 没有猜，也没有用坐标。它读取实时 DOM，'
-            "枚举页面上所有可操作控件，按意图关键词打分，选出得分最高的那个，"
-            "再用 <code>role=button</code> + 可访问名称去定位——这是选择器失效后依然站得住的路径。</div>",
+            "枚举页面上所有可操作控件，比对指纹（提交地址、表单字段、控件类型、按钮文案、"
+            "id/name、可访问角色、在表单里的位置），加权算出相似度，"
+            "只有最高分同时过了置信度与领先第二名两道闸门才会点击——"
+            f"再用 <code>role=button</code> + 可访问名称去定位。{gate}</div>",
             unsafe_allow_html=True,
         )
         rows = []
-        for c in sorted(candidates, key=lambda x: -int(x.get("score", 0) or 0)):
+        for c in sorted(candidates, key=lambda x: -float(x.get("similarity", 0) or 0)):
             is_hit = c.get("label") == matched
             hit = " class='hit'" if is_hit else ""
             mark = "<span class='hitmark'>&larr; 命中</span>" if is_hit else ""
             rows.append(
                 f"<tr{hit}><td>{c.get('label','')}{mark}</td>"
                 f"<td class='mono'>#{c.get('id','') or '-'}</td>"
-                f"<td class='mono'>{c.get('name','') or '-'}</td>"
-                f"<td class='score'>{c.get('score', 0)}</td></tr>"
+                f"<td class='mono'>{c.get('action','') or '-'}</td>"
+                f"<td class='score'>{c.get('similarity', 0)}</td>"
+                f"<td class='score'>{c.get('keyword_score', 0)}</td>"
+                f"<td class='score'>{c.get('legacy_score', 0)}</td></tr>"
             )
         st.markdown(
             "<table class='evidence'><thead><tr>"
-            "<th>页面上的控件</th><th>id</th><th>name</th><th>意图得分</th>"
+            "<th>页面上的控件</th><th>id</th><th>提交地址</th>"
+            "<th>指纹相似度</th><th>意图关键词分</th><th>旧方法关键词分</th>"
             "</tr></thead><tbody>" + "".join(rows) + "</tbody></table>",
             unsafe_allow_html=True,
         )
+
+        proposal = rec.get("proposal")
+        if proposal:
+            pid = proposal.get("id", "")
+            st.caption(
+                f"已生成修复提案 `{pid}`，尚未自动采用。确认无误后运行 "
+                f"`python -m browser.healing approve {pid}` 促成 L0，"
+                "下次同一控件直接命中，不再每次都重新打分。"
+            )
 
 
 _TONE_BADGE = {
@@ -558,6 +581,7 @@ def _knowledge_panel() -> None:
         hits = ask(query, k=4)
         if not hits:
             st.warning("没有检索到相关条款。换个说法试试，或者这条规则还没写进知识库。")
+            st.caption("宁可说没有依据，也不拿不相关条款充当依据。")
         else:
             st.caption(f"检索后端：`{get_retriever().name}` · 命中 {len(hits)} 条，按相关度排序")
             top = max(h.score for h in hits) or 1.0

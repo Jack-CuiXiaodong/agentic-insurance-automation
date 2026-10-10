@@ -7,13 +7,26 @@ from typing import Any, Dict
 from agent.state import AgentState
 from agent.trace import Trace
 from browser.driver import BrowserUnavailable
+from browser.healing import HealStore
 from browser.recovery import recover_action
+
+
+def _store(state: AgentState) -> HealStore:
+    store = state.runtime.get("heal_store")
+    if store is None:
+        store = HealStore()
+        state.runtime["heal_store"] = store
+    return store
 
 
 def browser_recover(state: AgentState, trace: Trace) -> Dict[str, Any]:
     claim = state.claim or {}
     trace.recover("启动浏览器自愈（Playwright）")
     state.record_tool("browser_recover")
+
+    session = state.runtime.get("browser_session")
+    page = session.page if (session is not None and session.alive) else None
+
     try:
         result = recover_action(
             claim_id=claim.get("claim_id", ""),
@@ -23,6 +36,8 @@ def browser_recover(state: AgentState, trace: Trace) -> Dict[str, Any]:
             ui_variant=claim.get("invoice_platform_ui", "v2"),
             headless=not state.show_browser,
             pace=state.demo_pace if state.show_browser else 0.0,
+            page=page,
+            store=_store(state),
         )
     except BrowserUnavailable as exc:
         state.recovery_result = {"success": False, "steps": [str(exc)]}
@@ -36,6 +51,8 @@ def browser_recover(state: AgentState, trace: Trace) -> Dict[str, Any]:
         trace.ok(step) if result.success else trace.add(step)
     if result.success:
         trace.ok(f"自动化已恢复，改用「{result.matched_label}」完成查验")
+    elif result.needs_human:
+        trace.warn("自愈未通过置信度闸门 —— 不点击任何控件，转人工")
     else:
         trace.fail("自愈未成功")
     return {"success": result.success, "result": result.as_dict()}

@@ -1,0 +1,20 @@
+{
+  "verify_invoice:#verify-invoice-btn": {
+    "label": "查验",
+    "tag": "button",
+    "type": "submit",
+    "role": "button",
+    "action": "/verify",
+    "fields": [
+      "amount",
+      "claim_id",
+      "invoice_code",
+      "invoice_no",
+      "status",
+      "ui"
+    ],
+    "id": "verify-invoice-btn",
+    "name": "verify_invoice",
+    "ordinal": 0
+  }
+}

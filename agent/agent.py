@@ -73,29 +73,36 @@ class Agent:
         if not self.trace.events:  # keep one continuous trace across a human pause/resume
             self.trace.add(f"Agent 启动（LLM 后端：{self.llm.name}）")
 
-        for _ in range(MAX_STEPS):
-            # Clean pause point for human-in-the-loop.
-            if run_status(state) == AWAITING_HUMAN:
-                break
+        try:
+            for _ in range(MAX_STEPS):
+                # Clean pause point for human-in-the-loop.
+                if run_status(state) == AWAITING_HUMAN:
+                    break
 
-            transcript = [{"role": "user", "content": render_state(state)}]
-            decision = self.llm.decide(
-                system_prompt=SYSTEM_PROMPT,
-                transcript=transcript,
-                tools_schema=tools_schema,
-                state=state,
-            )
+                transcript = [{"role": "user", "content": render_state(state)}]
+                decision = self.llm.decide(
+                    system_prompt=SYSTEM_PROMPT,
+                    transcript=transcript,
+                    tools_schema=tools_schema,
+                    state=state,
+                )
 
-            if decision.is_final:
-                break
-            if not decision.tool_calls:
-                break
+                if decision.is_final:
+                    break
+                if not decision.tool_calls:
+                    break
 
-            call = decision.tool_calls[0]
-            tool_name = self._guard(call.name, state)
-            if tool_name == "__noop__":
-                break
-            registry.execute(tool_name, state, self.trace, call.arguments)
+                call = decision.tool_calls[0]
+                tool_name = self._guard(call.name, state)
+                if tool_name == "__noop__":
+                    break
+                registry.execute(tool_name, state, self.trace, call.arguments)
+        finally:
+            # The human-approval pause happens before any browser work starts
+            # (execute_rpa only runs for AUTO_PROCESS or an already-APPROVEd
+            # HUMAN_REVIEW), so a runtime browser session is never open at that
+            # pause point -- always safe, and necessary, to close it here.
+            state.close_runtime()
 
         status = run_status(state)
         state.final_summary = build_final_summary(state)
@@ -115,6 +122,9 @@ def build_final_summary(state: AgentState) -> str:
         return f"{cid}：核赔员拒赔。"
     if state.recovery_result and state.recovery_result.get("success"):
         return f"{cid}：查验平台改版导致 RPA 中断，浏览器自愈完成验票 → 自动核赔通过。"
+    if state.recovery_result and state.recovery_result.get("needs_human"):
+        status_label = (state.recovery_result.get("decision") or {}).get("status_label", "")
+        return f"{cid}：{status_label} —— Agent 已停手，等待人工处理。"
     if state.rpa_result and state.rpa_result.get("success"):
         via = "核赔员审批后" if state.human_decision == "APPROVE" else "快速理赔直通"
         return f"{cid}：发票查验通过（{via}）→ 核赔完成。"

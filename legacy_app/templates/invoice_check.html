@@ -5,9 +5,9 @@
   <title>增值税发票查验平台（本地模拟）</title>
   <link rel="stylesheet" href="/static/legacy.css" />
 </head>
-<body class="ui-{{ 'v2' if ui == 'v2' else 'v1' }}">
+<body class="ui-{{ 'v1' if ui == 'v1' else 'v2' }}">
   <div class="frame">
-    <div class="titlebar">增值税发票查验平台 &mdash; 界面版本 v{{ '2' if ui == 'v2' else '1' }}</div>
+    <div class="titlebar">增值税发票查验平台 &mdash; 界面版本 {{ ui }}</div>
     <div class="mockbanner">
       本地模拟页面 &middot; 合成数据 &middot; 非任何真实查验平台，仅用于演示 RPA 与自愈
     </div>
@@ -27,7 +27,14 @@
         <input type="text" name="status" value="待查验" readonly />
       </label>
 
-      {% if ui == 'v2' %}
+      {% if ui == 'v3' %}
+      <button type="submit" id="save-draft-btn" name="save_draft" formaction="/draft">
+        保存草稿
+      </button>
+      <button type="submit" id="btn-x7f2" name="submit_check">
+        立即校验
+      </button>
+      {% elif ui == 'v2' %}
       <button type="submit" id="check-invoice-btn" name="check_invoice">
         查验发票信息
       </button>

@@ -1,0 +1,29 @@
+{
+  "_note": "检索回归基线，不是检索能力证明。12 个片段的知识库本来就不需要上向量库——这份评测集的作用是：以后换检索器（embeddings/FAISS、混合检索）时，用同样的问题集跑一遍，看指标是涨是跌。",
+  "answerable": [
+    {"query": "8 万元的车损案子要不要转人工核赔？", "expected_sources": ["理赔规则.md", "核赔权限.md"]},
+    {"query": "赔款超过一万块要不要人审？", "expected_sources": ["核赔权限.md", "理赔规则.md"]},
+    {"query": "理赔金额大于1w需要审批吗？", "expected_sources": ["核赔权限.md", "理赔规则.md"]},
+    {"query": "刚买保险没几天就出险怎么处理？", "expected_sources": ["转人工规则.md"]},
+    {"query": "发票验不了真怎么办？", "expected_sources": ["发票查验规则.md"]},
+    {"query": "免赔额怎么扣？", "expected_sources": ["理赔规则.md"]},
+    {"query": "车损理赔需要准备哪些材料？", "expected_sources": ["单证要求.md"]},
+    {"query": "定损单是必须的吗？", "expected_sources": ["单证要求.md"]},
+    {"query": "事故认定书算不算必需单证？", "expected_sources": ["单证要求.md"]},
+    {"query": "有欺诈嫌疑的案子能自动核赔吗？", "expected_sources": ["理赔规则.md", "转人工规则.md"]},
+    {"query": "查验结果不一致算什么风险？", "expected_sources": ["发票查验规则.md"]},
+    {"query": "出现哪些情形必须转人工核赔？", "expected_sources": ["转人工规则.md"]},
+    {"query": "自动核赔的条件是什么？", "expected_sources": ["理赔规则.md"]},
+    {"query": "核赔结论有哪几种？", "expected_sources": ["核赔权限.md"]},
+    {"query": "风险等级为高一定要人工审核吗？", "expected_sources": ["核赔权限.md", "转人工规则.md"]},
+    {"query": "发票查验要用什么信息去查？", "expected_sources": ["发票查验规则.md"]},
+    {"query": "历史出险有问题会影响这次理赔吗？", "expected_sources": ["转人工规则.md"]},
+    {"query": "保单不在有效期内的案子怎么处理？", "expected_sources": ["核赔权限.md", "转人工规则.md"]}
+  ],
+  "refuse": [
+    {"query": "今天天气怎么样？"},
+    {"query": "帮我写一首诗"},
+    {"query": "特斯拉股票现在多少钱？"},
+    {"query": "怎么安装 python？"}
+  ]
+}

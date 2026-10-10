@@ -24,6 +24,14 @@ from rag.ingest import Chunk, load_chunks
 _LATIN_RE = re.compile(r"[a-z0-9]+")
 _CJK_RE = re.compile(r"[\u4e00-\u9fff]+")
 
+# Below this cosine score, a hit is noise, not evidence. Calibrated against
+# rag/eval_set.json: on the current 12-chunk knowledge base, every genuinely
+# applicable question's top hit scores >= 0.117, and every off-topic one
+# (weather, a poem, a stock price, installing Python) tops out at 0.042. 0.05
+# sits in that gap with margin either way; see rag/evaluate.py for the
+# regression that keeps it true as the knowledge base grows.
+MIN_SCORE = 0.05
+
 
 def _tokenize(text: str) -> List[str]:
     """Tokenize mixed Chinese/English text.
@@ -66,7 +74,7 @@ class Retriever(ABC):
     name: str = "abstract"
 
     @abstractmethod
-    def search(self, query: str, k: int = 3) -> List[RetrievedRule]:
+    def search(self, query: str, k: int = 3, min_score: float = 0.0) -> List[RetrievedRule]:
         ...
 
 
@@ -113,7 +121,20 @@ class LexicalRetriever(Retriever):
             a, b = b, a
         return sum(v * b.get(t, 0.0) for t, v in a.items())
 
-    def search(self, query: str, k: int = 3) -> List[RetrievedRule]:
+    def search(self, query: str, k: int = 3, min_score: float = MIN_SCORE) -> List[RetrievedRule]:
+        """Top-``k`` chunks scoring at least ``min_score``.
+
+        Without a floor, a completely unrelated question ("今天天气怎么样")
+        still gets back the *least bad* two chunks in the corpus -- a cosine
+        score near zero is not "no", it is "nothing matched", and returning it
+        as if it were evidence is how an agent ends up citing a rule that does
+        not apply. ``search_full`` below is the escape hatch for anything (an
+        eval harness, a debugging session) that needs the unfiltered ranking.
+        """
+        return [r for r in self.search_full(query, k=k) if r.score >= min_score]
+
+    def search_full(self, query: str, k: int = 3) -> List[RetrievedRule]:
+        """Unfiltered top-``k``, scored but not gated. See ``search``."""
         qvec = self._vectorize(_tokenize(query))
         scored = []
         for chunk, dvec in zip(self.chunks, self._doc_vecs):

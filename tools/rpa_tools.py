@@ -10,11 +10,29 @@ from typing import Any, Dict
 
 from agent.state import AgentState
 from agent.trace import Trace
-from browser.driver import BrowserUnavailable
+from browser.driver import BrowserSession, BrowserUnavailable
 from rpa.interface import RPAExecutionError
 from rpa.mock_rpa import WORKFLOW, MockRPAAdapter
 
 _adapter = MockRPAAdapter()
+
+
+def _on_located_factory(state: AgentState):
+    """Refresh the recorded fingerprint for this element right before the
+    brittle click. Cheap insurance: if someone *does* re-record against a new
+    UI later, the baseline should reflect the control RPA actually used, not
+    whatever happened to be there when the demo data file was written."""
+    def _on_located(locator) -> None:
+        try:
+            from browser import fingerprint
+            from browser.healing import HealStore
+
+            store: HealStore = state.runtime.get("heal_store") or HealStore()
+            fp = fingerprint.capture(locator)
+            store.record("verify_invoice:#verify-invoice-btn", fp)
+        except Exception:  # pragma: no cover - never let bookkeeping break a run
+            pass
+    return _on_located
 
 
 def execute_rpa(state: AgentState, trace: Trace) -> Dict[str, Any]:
@@ -24,15 +42,38 @@ def execute_rpa(state: AgentState, trace: Trace) -> Dict[str, Any]:
         "invoice_code": claim.get("invoice_code", ""),
         "invoice_no": claim.get("invoice_no", ""),
         "amount": claim.get("amount", ""),
-        # The platform's *current* UI state (v1 original, v2 redesigned).
+        # The platform's *current* UI state (v1 original, v2/v3 redesigned).
         "ui_variant": claim.get("invoice_platform_ui", "v1"),
         "headless": not state.show_browser,
         "pace": state.demo_pace if state.show_browser else 0.0,
     }
     trace.add(f"执行 RPA 流程「发票查验」（{_adapter.name}）")
     state.record_tool("execute_rpa")
+
+    kwargs: Dict[str, Any] = {}
+    if getattr(_adapter, "supports_shared_page", False):
+        # Open the browser *before* the attempt, not around it: on failure the
+        # page must stay open, exactly where it broke, for browser_recover to
+        # pick up in place. A context manager that closes on exit cannot do
+        # that -- lifecycle has to live on state.runtime instead.
+        session = state.runtime.get("browser_session")
+        if session is None:
+            session = BrowserSession(headless=params["headless"])
+            state.runtime["browser_session"] = session
+        try:
+            url = _rpa_url(params)
+            session.open(url)
+        except BrowserUnavailable as exc:
+            state.rpa_result = {
+                "success": False, "workflow": WORKFLOW, "message": str(exc),
+                "browser_unavailable": True,
+            }
+            trace.fail(f"浏览器不可用：{exc}")
+            return {"success": False, "error": str(exc), "browser_unavailable": True}
+        kwargs = {"page": session.page, "on_located": _on_located_factory(state)}
+
     try:
-        result = _adapter.execute_workflow(WORKFLOW, params)
+        result = _adapter.execute_workflow(WORKFLOW, params, **kwargs)
         state.rpa_result = result.as_dict()
         state.add_evidence("rpa_success", result.screenshot)
         trace.ok(f"RPA 执行完成（{result.details.get('result_status')}）")
@@ -55,3 +96,10 @@ def execute_rpa(state: AgentState, trace: Trace) -> Dict[str, Any]:
         state.add_evidence("rpa_failure", getattr(exc, "screenshot", None))
         trace.fail(f"RPA 失败：{exc}")
         return {"success": False, "error": str(exc)}
+
+
+def _rpa_url(params: Dict[str, Any]) -> str:
+    from config import settings
+    from rpa.mock_rpa import build_url
+
+    return build_url(settings.legacy_base_url, params)

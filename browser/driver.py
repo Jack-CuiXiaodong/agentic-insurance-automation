@@ -68,3 +68,70 @@ def page_session(
                 except Exception:  # pragma: no cover - cosmetic only
                     pass
             browser.close()
+
+
+class BrowserSession:
+    """A browser kept open across multiple tool calls, for in-place recovery.
+
+    ``page_session`` opens and closes a browser around a single step -- correct
+    for an isolated action, wrong for recovery: a real bot sits on an open
+    browser while the page underneath it changes, and reopening a fresh window
+    to "recover" is not recovery, it is a retry that happens to look similar.
+    ``BrowserSession`` is the version that stays open: ``execute_rpa`` opens one
+    and leaves the page exactly as it failed; ``browser_recover`` reuses that
+    same tab.
+
+    Lifecycle is owned by the caller (see ``AgentState.runtime`` /
+    ``close_runtime``) -- this class never closes itself implicitly.
+    """
+
+    def __init__(self, headless: bool | None = None):
+        self.headless = settings.playwright_headless if headless is None else headless
+        self._pw = None
+        self._browser = None
+        self.page = None
+
+    @property
+    def alive(self) -> bool:
+        return self.page is not None and not self.page.is_closed()
+
+    def open(self, url: str) -> "object":
+        if self._pw is None:
+            try:
+                from playwright.sync_api import sync_playwright
+            except Exception as exc:  # pragma: no cover
+                raise BrowserUnavailable(
+                    "Playwright is not installed. Run: pip install playwright && "
+                    "playwright install chromium"
+                ) from exc
+            self._pw = sync_playwright().start()
+            launch_kwargs = {"headless": self.headless}
+            if settings.playwright_chromium_path:
+                launch_kwargs["executable_path"] = settings.playwright_chromium_path
+            try:
+                self._browser = self._pw.chromium.launch(**launch_kwargs)
+            except Exception as exc:  # pragma: no cover
+                self._pw.stop()
+                self._pw = None
+                raise BrowserUnavailable(
+                    "Could not launch Chromium. Run: playwright install chromium "
+                    "(or set PLAYWRIGHT_CHROMIUM_PATH to an existing browser binary)"
+                ) from exc
+            self.page = self._browser.new_page(viewport={"width": 900, "height": 620})
+        self.page.goto(url, wait_until="domcontentloaded")
+        return self.page
+
+    def close(self) -> None:
+        if self._browser is not None:
+            try:
+                self._browser.close()
+            except Exception:  # pragma: no cover - best-effort cleanup
+                pass
+        if self._pw is not None:
+            try:
+                self._pw.stop()
+            except Exception:  # pragma: no cover
+                pass
+        self._browser = None
+        self._pw = None
+        self.page = None
