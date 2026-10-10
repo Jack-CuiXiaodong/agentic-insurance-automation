@@ -19,7 +19,7 @@
 
 ```bash
 pip install -r requirements.txt
-python -m pytest -q          # 有浏览器 68 passed；没有则 63 passed, 5 skipped
+python -m pytest -q          # 有浏览器 79 passed；没有则 74 passed, 5 skipped
 python app.py                # 起 Streamlit（会自己把自己拉起在 streamlit 下）
 python walkthrough.py all    # 自底向上逐层导读，含真实浏览器
 ```
@@ -60,6 +60,12 @@ python walkthrough.py all    # 自底向上逐层导读，含真实浏览器
 
 **不要**把决策逻辑挪进知识库，也不要让检索结果去驱动金额判断。
 理由：规则文档应该好改，护栏不应该好改。改了这条，这个项目最值钱的论点就没了。
+
+**RPA 只是手脚，任何一家都行。** `RPAAdapter` 是唯一插槽：默认 `MockRPAAdapter`，
+`RPA_PROVIDER=mcp` 时走通用的 `rpa/mcp_adapter.py`（任何把流程发布成 MCP 工具的 RPA，
+影刀只是第一个示例）。**不要**在代码里写厂商专属分支——厂商差异只放在 `.env` 和
+`docs/rpa_mcp.md`。审批、核赔、自愈永远不交给 RPA。`MockRPAAdapter.accepts_selector_hint`
+必须保持 `False`：mock 是刻意的脆弱 RPA，它要是开始听修复提示，demo 就在撒谎。
 
 ---
 

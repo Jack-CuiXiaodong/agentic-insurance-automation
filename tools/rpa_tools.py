@@ -12,9 +12,10 @@ from agent.state import AgentState
 from agent.trace import Trace
 from browser.driver import BrowserSession, BrowserUnavailable
 from rpa.interface import RPAExecutionError
-from rpa.mock_rpa import WORKFLOW, MockRPAAdapter
+from rpa.mock_rpa import WORKFLOW
+from rpa.provider import get_adapter
 
-_adapter = MockRPAAdapter()
+_adapter = get_adapter()
 
 
 def _on_located_factory(state: AgentState):
@@ -47,6 +48,15 @@ def execute_rpa(state: AgentState, trace: Trace) -> Dict[str, Any]:
         "headless": not state.show_browser,
         "pace": state.demo_pace if state.show_browser else 0.0,
     }
+    if getattr(_adapter, "accepts_selector_hint", False):
+        from browser.healing import HealStore
+        from browser.recovery import VERIFY_INVOICE
+
+        store = state.runtime.get("heal_store") or HealStore()
+        approved = store.approved_selector(VERIFY_INVOICE.key)
+        if approved:
+            params["selector"] = approved
+            trace.add(f"把人工批准过的修复交给 RPA：{approved}")
     trace.add(f"执行 RPA 流程「发票查验」（{_adapter.name}）")
     state.record_tool("execute_rpa")
 

@@ -10,6 +10,9 @@ python-dotenv>=1.0
 anthropic>=0.34          # Claude (often unreachable from mainland China)
 openai>=1.40              # OpenAI-wire-compatible: DeepSeek / Qwen / Kimi / 智谱 GLM / custom
 
+# Real RPA as the agent's hands over MCP (optional; only for RPA_PROVIDER=mcp)
+mcp>=2.3,<3
+
 # Dev / tests
 pytest>=8.0
 

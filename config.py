@@ -109,6 +109,19 @@ class Settings:
     )
     core_api_key: str = field(default_factory=lambda: _env("CORE_API_KEY"))
 
+    # -- RPA "hands" -------------------------------------------------------
+    # mock | mcp  (mcp = any RPA product that exposes its workflows as MCP tools)
+    rpa_provider: str = field(default_factory=lambda: _env("RPA_PROVIDER", "mock").lower())
+    rpa_mcp_url: str = field(default_factory=lambda: _env("RPA_MCP_URL"))
+    rpa_mcp_token: str = field(default_factory=lambda: _env("RPA_MCP_TOKEN"))
+    # Tool name the RPA product published the invoice-verification workflow as.
+    rpa_mcp_tool: str = field(default_factory=lambda: _env("RPA_MCP_TOOL", "verify_invoice"))
+    # Display name only (shown in the trace), e.g. "影刀". Never branches logic.
+    rpa_mcp_vendor: str = field(default_factory=lambda: _env("RPA_MCP_VENDOR", "RPA"))
+    rpa_mcp_timeout: float = field(
+        default_factory=lambda: float(_env("RPA_MCP_TIMEOUT", "300"))
+    )
+
     # -- Mock invoice-verification platform (for the RPA / recovery demo) ---
     legacy_host: str = field(default_factory=lambda: _env("LEGACY_HOST", "127.0.0.1"))
     legacy_port: int = field(default_factory=lambda: int(_env("LEGACY_PORT", "5001")))
