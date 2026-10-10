@@ -1,0 +1,15 @@
+{
+  "_note": "示例：用本地模拟查验平台跑通工具（先运行 python legacy_app/app.py）。真实网站的用例请写在 heal_bench/local/ 下（已被 git 忽略，不进公开仓库）。字段说明见 heal_bench/README.md。",
+  "cases": [
+    {
+      "name": "模拟查验平台 · 查验按钮",
+      "intent_keywords": ["查验", "验真", "核验", "校验"],
+      "negative_keywords": ["草稿", "保存", "重置", "取消", "返回"],
+      "baseline": {"url": "http://127.0.0.1:5001/?ui=v1", "selector": "#verify-invoice-btn"},
+      "versions": [
+        {"label": "v2 改版", "url": "http://127.0.0.1:5001/?ui=v2", "expected": "#check-invoice-btn"},
+        {"label": "v3 陷阱页", "url": "http://127.0.0.1:5001/?ui=v3", "expected": "#btn-x7f2"}
+      ]
+    }
+  ]
+}

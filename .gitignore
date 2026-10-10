@@ -29,3 +29,6 @@ test-results/
 
 # Browser-healing runtime state (proposals/fingerprints learned from real runs)
 data/heal_runtime.json
+
+# Real-site benchmark cases and reports: real URLs never enter the public repo
+heal_bench/local/

@@ -19,7 +19,7 @@
 
 ```bash
 pip install -r requirements.txt
-python -m pytest -q          # 有浏览器 68 passed；没有则 63 passed, 5 skipped
+python -m pytest -q          # 有浏览器 76 passed；没有则 63 passed, 13 skipped
 python app.py                # 起 Streamlit（会自己把自己拉起在 streamlit 下）
 python walkthrough.py all    # 自底向上逐层导读，含真实浏览器
 ```
@@ -138,6 +138,10 @@ headless、CI、测试必须全速，否则 40 个测试会莫名其妙变慢。
    为了让某个 demo 场景"看起来能过"而调低它们，等于把这个项目的安全论点撤回去了。
 3. **点完看结果，不是点完就算数。** `heal_on_page` 点击之后必须校验结果页状态码
    对上预期值，对不上照样算失败、转人工。
+
+真实网站上的自愈能力用 `heal_bench/` 测：**只读**（从不点击、提交、碰验证码），
+真实网址和报告只放 `heal_bench/local/`（git 忽略）。不要给它加点击能力，
+也不要把真实用例提交进仓库。
 
 成功的自愈不会偷偷改脚本：`browser/healing.py` 的 `HealStore` 把它写成一条
 **待人工审核的修复提案**，只有 `python -m browser.healing approve <id>` 才能升级成

@@ -424,8 +424,11 @@ streamlit run app.py      # 或：python app.py
 ```bash
 # 测试
 pytest -q
-# 有可用浏览器：68 passed
-# 无可用浏览器：63 passed, 5 skipped（跳过的是真实浏览器的自愈 e2e 测试）
+# 有可用浏览器：76 passed
+# 无可用浏览器：63 passed, 13 skipped（跳过的是需要真实浏览器的测试）
+
+# 真实网站上的自愈只读测试（用例写在本地，不进仓库），见 heal_bench/README.md
+python -m heal_bench heal_bench/cases.example.json
 
 # 分层导读：一次只点亮架构的一层
 python walkthrough.py        # 列出全部 10 步
@@ -479,6 +482,7 @@ agentic-insurance-automation/
 ├── knowledge/             # 中文业务规则（RAG 数据源）
 ├── data/                  # 合成演示报案
 ├── ui/                    # Streamlit 界面
+├── heal_bench/            # 真实网页上的自愈只读测试（找对 / 停手 / 找错）
 ├── docs/                  # GitHub Pages 落地页
 └── tests/                 # pytest 套件
 ```
@@ -512,7 +516,10 @@ agentic-insurance-automation/
 - 查验平台是最小化的本地模拟，**不是**任何真实平台，也没有使用其任何标识。
 - 指纹比对的特征权重、置信度阈值（0.65）、领先第二名的阈值（0.15）是在这几个
   mock 页面上手调出来的，不是从大规模真实数据统计得到的；接入更多真实页面后
-  可能需要重新标定。
+  可能需要重新标定。`heal_bench/` 就是为这件事准备的：在真实网站的真实改版上
+  只读地测「找对 / 停手 / 找错」，用例和结果留在本地，不进公开仓库
+  （见 [`heal_bench/README.md`](heal_bench/README.md)）。
+- 自愈目前只看主页面，控件在 iframe 里时找不到（`heal_bench` 会把这种情况单独标出来）。
 - RAG 的拒答阈值同理标定自一份 22 条问题的小评测集（`rag/eval_set.json`）——
   够当回归基线，不构成大样本上的检索质量证明。
 
