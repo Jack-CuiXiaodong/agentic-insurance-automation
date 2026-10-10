@@ -1,10 +1,12 @@
 """RPA execution abstraction.
 
 The Agent talks to an :class:`RPAAdapter`, never to a concrete RPA product. This
-is the seam that lets an enterprise RPA implementation (UiPath, 艺赛旗 iS-RPA,
-影刀, Automation Anywhere, ...) be plugged in later *without touching the Agent*.
+is the seam that lets any RPA product act as the agent's hands *without touching
+the Agent* -- no product is privileged.
 
-In this public PoC the only implementation is :class:`~rpa.mock_rpa.MockRPAAdapter`.
+Implementations: :class:`~rpa.mock_rpa.MockRPAAdapter` (default, local demo
+platform) and :class:`~rpa.mcp_adapter.MCPRPAAdapter` (any product that exposes
+its workflows as MCP tools; 影刀 is the first worked example in docs/rpa_mcp.md).
 """
 
 from __future__ import annotations
@@ -67,6 +69,10 @@ class RPAAdapter(ABC):
 
     name: str = "abstract"
     supports_shared_page: bool = False
+    # True when the workflow takes an optional ``selector`` parameter: once a
+    # human approves a healing proposal, the brain hands the new selector to the
+    # hands on the next call, instead of someone re-recording the workflow.
+    accepts_selector_hint: bool = False
 
     @abstractmethod
     def execute_workflow(self, workflow_name: str, parameters: Dict[str, Any]) -> RPAResult:

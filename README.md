@@ -377,10 +377,23 @@ Playwright = 读取 + 比对指纹 + 过闸门才点，能扛过同一次改版
 > 读按钮文字用的是 `textContent`，不是 `innerText`——后者会强制浏览器做一次同步布局，
 > 在某些无头 Chromium 上可能让自动化跑到一半崩掉。
 
-### 接真实企业 RPA 产品
+### 接真实 RPA：任何 RPA 都只是手脚
 
-真实产品（影刀 / 艺赛旗 / 来也 / 弘玑 / UiPath……）通常只需要实现
-`RPAAdapter.execute_workflow(name, params)`；多数场景不需要浏览器自愈介入。
+大脑（编排、规则、核赔、自愈、审批）是自己的，RPA 只负责"去点"。不绑定任何一家：
+只要 RPA 产品能把流程发布成 **MCP 工具**，`RPA_PROVIDER=mcp` 加几行配置就接进来，
+走的是通用的 `rpa/mcp_adapter.py`，代码里没有任何厂商专属分支。
+影刀（控制台「MCP 管理」）是目前最完善的，作为第一个接入示例。
+
+| | Mock（默认） | 任意 RPA · MCP |
+|---|---|---|
+| 谁来点 | 本地模拟的脆弱 RPA | 客户已有的 RPA（影刀 / 其他） |
+| 失败后 | 我们的自愈就地接手 | 我们的自愈另开页面接手（别家的浏览器拿不到） |
+| 修复批准后 | 照样脆（刻意的，演示用） | 下次调用把新选择器作为 `selector` 参数交给 RPA，流程不用重录 |
+
+RPA 侧要遵守的输入 / 输出约定、影刀接入步骤、没有 MCP 的产品怎么接，见
+[`docs/rpa_mcp.md`](docs/rpa_mcp.md)。返回结果看不懂时**按失败处理**——
+判断不了手脚有没有把事办成，就不能说办成了。
+
 想要「RPA 失败后自愈接管同一个页面」这个能力，产品需要暴露 Chrome DevTools
 Protocol（CDP）端点，让 `browser/recovery.py` 用 `connect_over_cdp` 接上同一个
 已打开的浏览器实例，而不是另开一个——这是 `RPAAdapter.supports_shared_page`
@@ -424,8 +437,8 @@ streamlit run app.py      # 或：python app.py
 ```bash
 # 测试
 pytest -q
-# 有可用浏览器：68 passed
-# 无可用浏览器：63 passed, 5 skipped（跳过的是真实浏览器的自愈 e2e 测试）
+# 有可用浏览器：79 passed
+# 无可用浏览器：74 passed, 5 skipped（跳过的是真实浏览器的自愈 e2e 测试）
 
 # 分层导读：一次只点亮架构的一层
 python walkthrough.py        # 列出全部 10 步
@@ -451,6 +464,9 @@ python walkthrough.py 9      # 第 9 层：RPA 脆断 + v2 自愈 + v3 陷阱页
 | `LEGACY_HOST` / `LEGACY_PORT` | `127.0.0.1` / `5001` | 模拟查验平台 |
 | `PLAYWRIGHT_HEADLESS` | `true` | 现场演示可设 false 看真实点击 |
 | `PLAYWRIGHT_CHROMIUM_PATH` | — | 指定已有的 Chromium/Chrome，用于沙箱 / CI 镜像 |
+| `RPA_PROVIDER` | `mock` | `mock` / `mcp`（任何把流程发布成 MCP 工具的 RPA） |
+| `RPA_MCP_URL` / `RPA_MCP_TOKEN` | — | RPA 的 MCP 地址与令牌 |
+| `RPA_MCP_TOOL` / `RPA_MCP_VENDOR` | `verify_invoice` / `RPA` | 工具名；厂商显示名（只用于轨迹） |
 
 ### 为什么默认 DeepSeek 而不是 Anthropic
 
@@ -473,7 +489,7 @@ agentic-insurance-automation/
 ├── insurance/             # 保险公司数据抽象：mock + 核心系统骨架
 ├── rag/                   # 切块 + 检索（中文词法默认，FAISS 骨架）+ eval_set.json / evaluate.py
 ├── risk/                  # 确定性风险与核赔结论引擎
-├── rpa/                   # RPAAdapter 接口 + MockRPAAdapter
+├── rpa/                   # RPAAdapter 接口 + MockRPAAdapter + MCPRPAAdapter（任意 RPA）
 ├── browser/               # driver（共享会话）+ fingerprint（指纹）+ healing（置信度闸门/提案）+ recovery
 ├── legacy_app/            # 模拟的增值税发票查验平台（v1/v2 两版界面）
 ├── knowledge/             # 中文业务规则（RAG 数据源）
@@ -518,8 +534,8 @@ agentic-insurance-automation/
 
 ## 15. 后续方向 · Future Work
 
-- 把真实企业 RPA 接入 `RPAAdapter`（UiPath / 艺赛旗 iS-RPA / 影刀 / Automation Anywhere），
-  通过 CDP 把浏览器自愈接到产品自己打开的那个页面上（见 §8）。
+- 用真实 RPA 账号联调 `MCPRPAAdapter`（第一个目标：影刀），并通过 CDP 把浏览器自愈
+  接到 RPA 自己打开的那个页面上，做到就地接手（见 §8）。
 - L2 兜底路径换成 LLM 读无障碍树快照做候选打分，但仍然过同一套置信度闸门——
   闸门管的是「敢不敢点」，不管候选是关键词算出来的还是模型读出来的。
 - 把保险公司核心系统接入 `insurance/carrier_client.py`。
@@ -533,7 +549,8 @@ agentic-insurance-automation/
 
 > 这是一个**独立的技术验证**，使用**全合成数据**。它**不**使用、也**不**复现任何专有
 > 系统、数据、流程或凭据，**不是**任何公司的官方产品。报案号、保单号、车牌、发票号码
-> 均为虚构。"RPA"层是按集成边界设计的 mock 适配器，不是真实的企业 RPA 产品。
+> 均为虚构。默认的"RPA"层是按集成边界设计的 mock 适配器，不是真实的企业 RPA 产品；
+> `MCPRPAAdapter` 是通用接入层，仅用本地模拟的 MCP 服务测试过，未与任何真实 RPA 产品联调。
 > `legacy_app/` 是一个本地模拟页面，用于演示 RPA 脆断与自愈，**不是**任何真实查验
 > 平台，也未使用其名称、标识或品牌元素。
 
