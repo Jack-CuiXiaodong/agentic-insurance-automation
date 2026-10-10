@@ -24,6 +24,7 @@ ROUTES = [
     ("需要风险评分与核赔结论", "→ 确定性风险引擎（calculate_risk）"),
     ("结论 = 自动核赔", "→ RPA 发票查验（execute_rpa）"),
     ("RPA 因页面改版失败", "→ 浏览器自愈（browser_recover）"),
+    ("自愈未通过置信度闸门", "→ 停手，转人工（不点击任何控件）"),
     ("结论 = 人工核赔", "→ 核赔员审批（request_human_approval）"),
 ]
 
@@ -46,6 +47,8 @@ def _execution_step(state: AgentState) -> Tuple[Optional[str], str]:
         return None, "RPA 失败且浏览器不可用 —— 无法自愈"
     if state.recovery_result is None:
         return "browser_recover", "RPA 选择器失效 → 启动 Playwright 自适应自愈"
+    if state.recovery_result.get("needs_human"):
+        return None, "自愈未通过置信度闸门 —— 不点击任何控件，转人工"
     return None, "已尝试过自愈 —— 无后续动作"
 
 

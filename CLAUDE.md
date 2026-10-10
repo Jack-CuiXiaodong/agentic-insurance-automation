@@ -19,7 +19,7 @@
 
 ```bash
 pip install -r requirements.txt
-python -m pytest -q          # 期望 40 passed
+python -m pytest -q          # 有浏览器 68 passed；没有则 63 passed, 5 skipped
 python app.py                # 起 Streamlit（会自己把自己拉起在 streamlit 下）
 python walkthrough.py all    # 自底向上逐层导读，含真实浏览器
 ```
@@ -54,7 +54,9 @@ python walkthrough.py all    # 自底向上逐层导读，含真实浏览器
 
 `AUTO_LIMIT = 10_000` 是 `risk/engine.py` 里的 Python 常量；
 `knowledge/理赔规则.md` 和 `knowledge/核赔权限.md` 里那句「超过 10,000 元」
-是**同一个数字的文字表述**，供 RAG 检索出佐证。两边必须手工保持一致。
+是**同一个数字的文字表述**，供 RAG 检索出佐证。两边一致现在由
+`tests/test_rule_code_consistency.py` 强制检查，不再只靠人工记着——改了金额
+记得同时改两边，不然这个测试会红。
 
 **不要**把决策逻辑挪进知识库，也不要让检索结果去驱动金额判断。
 理由：规则文档应该好改，护栏不应该好改。改了这条，这个项目最值钱的论点就没了。
@@ -86,14 +88,18 @@ python walkthrough.py all    # 自底向上逐层导读，含真实浏览器
 
 ---
 
-## 模拟查验平台的两套皮肤
+## 模拟查验平台的三个版本
 
-`legacy_app` 有 `?ui=v1` / `?ui=v2` 两个界面版本，由 `<body class="ui-v1|ui-v2">` 切换：
+`legacy_app` 有 `?ui=v1` / `?ui=v2` / `?ui=v3` 三个界面版本，由
+`<body class="ui-v1|ui-v2|ui-v3">` 切换：
 
 - **v1** 刻意做旧，代表十年没动过的存量系统
 - **v2** 换成现代门户设计语言，代表「改版后」
+- **v3** 「陷阱页」：同一个表单里放了「保存草稿」（提交到 `/draft`）和
+  「立即校验」（提交到 `/verify`）两个按钮，专门用来证明关键词打分会选错，
+  指纹比对不会
 
-改版**只换皮肤和主按钮的文案 / id**：`#verify-invoice-btn`「查验」→
+v1→v2 的改版**只换皮肤和主按钮的文案 / id**：`#verify-invoice-btn`「查验」→
 `#check-invoice-btn`「查验发票信息」。字段名、表单 action、页面结构一律不动。
 
 这两个 id 是 demo 的命脉，`rpa/mock_rpa.py`、`browser/recovery.py`、
@@ -117,12 +123,40 @@ headless、CI、测试必须全速，否则 40 个测试会莫名其妙变慢。
 
 **Windows 上文件是 CRLF。** 写文件时保持，否则 git 会报满屏无意义 diff。
 
+**读按钮文字用 `textContent`，不要用 `innerText`。** 后者会强制浏览器做一次同步布局，
+在某些无头 Chromium 上可能让自动化跑到一半崩掉；`textContent` 不碰布局，稳。
+
+---
+
+## 自愈的三条底线
+
+1. **就地接手，不重开页面。** RPA 失败后留下的是同一个浏览器标签页；自愈在这同一个
+   标签页上继续。`agent/state.py` 里 `AgentState.runtime` 就是为这个存在的——
+   它从不进 `snapshot()`，因为它装的是活的浏览器会话，不是可序列化状态。
+2. **认不准就不点，绝不为了让它通过而调低阈值。** `browser/healing.py` 的
+   `MIN_CONFIDENCE`（0.65）和 `MIN_MARGIN`（0.15）是护栏，不是旋钮——
+   为了让某个 demo 场景"看起来能过"而调低它们，等于把这个项目的安全论点撤回去了。
+3. **点完看结果，不是点完就算数。** `heal_on_page` 点击之后必须校验结果页状态码
+   对上预期值，对不上照样算失败、转人工。
+
+成功的自愈不会偷偷改脚本：`browser/healing.py` 的 `HealStore` 把它写成一条
+**待人工审核的修复提案**，只有 `python -m browser.healing approve <id>` 才能升级成
+下次直接命中的 L0 记录。
+
 ---
 
 ## 测试
 
-`tests/` 里 40 个测试，其中 `test_guardrail_blocks_rpa_bypass_on_high_value`
-守着人工核赔闸门——它挂了说明护栏被绕开了，这是最不能妥协的一个。
+`tests/` 里一批测试中，这几个最不能妥协：
+
+- `test_guardrail_blocks_rpa_bypass_on_high_value` —— 守着人工核赔闸门，它挂了
+  说明护栏被绕开了。
+- `tests/test_healing.py` 里新旧方法在 v3 陷阱页上选出不同按钮的那几个 ——
+  证明了指纹比对真的在防旧方法会踩的坑，不是摆设。
+- `test_rule_code_consistency.py::test_the_detector_actually_catches_drift` ——
+  证明金额门槛的一致性检查不是摆设，真改一个数字会让它变红。
+- `test_rag_eval.py::test_refusal_accuracy_is_zero_without_the_floor` ——
+  证明拒答阈值真的在过滤，不是摆设。
 
 提交前跑 `python -m pytest -q`。改了浏览器层再跑一次 `python walkthrough.py 9`。
 

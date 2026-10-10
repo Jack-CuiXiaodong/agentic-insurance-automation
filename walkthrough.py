@@ -285,8 +285,10 @@ def step9_rpa() -> None:
          "",
          "  legacy_app  ?ui=v1 → 按钮 #verify-invoice-btn 「查验」",
          "              ?ui=v2 → 按钮 #check-invoice-btn  「查验发票信息」",
-         "  mock_rpa    写死了 #verify-invoice-btn —— v1 能跑，v2 必炸（这是故意的）",
-         "  recovery    不认死选择器，读实时 DOM，按语义找等价控件")
+         "              ?ui=v3 → 陷阱页：两个按钮「保存草稿」「立即校验」都在，",
+         "                       关键词打分谁都能命中「保存」类词，容易点错",
+         "  mock_rpa    写死了 #verify-invoice-btn —— v1 能跑，v2/v3 必炸（这是故意的）",
+         "  recovery    不认死选择器，读实时 DOM，比对指纹，过了置信度闸门才点")
 
     from legacy_app import manager
     print("\n  ▶ 启动 legacy 系统 ...")
@@ -304,10 +306,38 @@ def step9_rpa() -> None:
         print(f"    {line}")
     print(f"\n    最终: {r.state.final_summary}")
     if r.state.recovery_result:
-        out("recovery 看到的候选控件", r.state.recovery_result.get("candidates"))
+        rec = r.state.recovery_result
+        out("recovery 看到的候选控件", rec.get("candidates"))
+        decision = rec.get("decision") or {}
+        if decision:
+            out("置信度闸门的判定", decision)
+
+    print("\n  " + "─" * (W - 4))
+    print("  v3 陷阱页 —— 旧方法关键词打分 vs 新方法指纹比对")
+    print("  " + "─" * (W - 4))
+    import tempfile
+    from browser.recovery import VERIFY_INVOICE, legacy_keyword_score, recover_action
+    from browser.healing import HealStore
+    with tempfile.TemporaryDirectory() as tmp:
+        store = HealStore(path=f"{tmp}/runtime.json", baseline_path=f"{tmp}/baseline.json")
+        trap = recover_action(
+            "BX-2024-0003", 8000, invoice_code="011002000000", invoice_no="12345678",
+            ui_variant="v3", headless=True, store=store,
+        )
+    legacy_scores = {
+        c.get("label"): legacy_keyword_score(c.get("label", ""))
+        for c in trap.candidates
+    }
+    out("v3 页面上旧方法的关键词分（谁分高就点谁）", legacy_scores)
+    out("v3 页面上新方法实际选中的控件", trap.matched_label or "（未通过闸门，转人工）")
+    note("", "旧方法按关键词打分，「保存草稿」和「立即校验」都含「保存/校验」类正向词，",
+         "容易选错——这正是 v3 陷阱页存在的原因。",
+         f"新方法比对的是 {VERIFY_INVOICE.key} 的指纹（提交地址、表单字段、控件类型……），",
+         "「保存草稿」提交到 /draft、「立即校验」提交到 /verify，指纹一眼能分辨。")
     note("", "★ RPA = 认死选择器，界面一改就断。",
-         "  Playwright 自愈 = 读页面 + 按语义匹配，同一个改动能扛过去。",
-         "  两条路走的是同一个 browser/driver.py，区别只在「怎么找元素」。")
+         "  Playwright 自愈 = 读页面 + 比对指纹 + 过闸门才点，同一个改动能扛过去，",
+         "  认不准的时候情愿不点，交给人。",
+         "  两条路走的是同一个 browser/driver.py，区别只在「怎么找元素、敢不敢点」。")
 
 
 # ---------------------------------------------------------------- step 10

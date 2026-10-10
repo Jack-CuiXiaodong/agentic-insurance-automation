@@ -24,12 +24,21 @@ only things this module adds are pacing, captions, and screenshots.
 
 from __future__ import annotations
 
+import tempfile
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode
 
+from browser import fingerprint
 from browser.driver import page_session
-from browser.recovery import _highlight, _inspect_buttons, _shoot
+from browser.healing import HealStore
+from browser.recovery import (
+    VERIFY_INVOICE,
+    RecoveryResult,
+    _highlight,
+    _shoot,
+    heal_on_page,
+)
 from config import settings
 from rpa.mock_rpa import BRITTLE_SELECTOR
 
@@ -127,6 +136,15 @@ def _pause(page, ms: int) -> None:
             pass
 
 
+def _buttons(page) -> List[Dict[str, Any]]:
+    """Fingerprint every candidate on the page, legacy-shaped for the act-2
+    before/after table (label + id is all that table needs)."""
+    out = []
+    for c in fingerprint.candidates(page):
+        out.append({"label": c.fingerprint.label, "id": c.fingerprint.id})
+    return out
+
+
 def run_storyboard(
     claim: Dict[str, Any],
     headless: bool = True,
@@ -146,140 +164,169 @@ def run_storyboard(
     beat = slow_mo * 2 if slow_mo else 120
     acts: List[Act] = []
 
-    with page_session(_url("v1", claim), headless=headless, slow_mo=slow_mo,
-                      linger_ms=slow_mo * 3) as page:
+    # A demo run must never write a real proposal into data/heal_runtime.json
+    # -- this HealStore lives entirely in a scratch temp file for the duration
+    # of this one call and is discarded afterward.
+    with tempfile.TemporaryDirectory() as tmp:
+        store = HealStore(path=f"{tmp}/runtime.json", baseline_path=f"{tmp}/baseline.json")
 
-        # ------------------------------------------------------------ act 1
-        # The recorded selector matches, the click lands, the invoice verifies.
-        _banner(page, "传统 RPA 正常工作",
-                f"按录制那天记下的 {BRITTLE_SELECTOR} 定位「查验」按钮 —— 稳定命中", OK)
-        _pause(page, beat)
-        v1_controls = _inspect_buttons(page)
-        target = page.locator(BRITTLE_SELECTOR)
-        found_v1 = target.count() > 0
-        if found_v1:
-            _highlight(target)
+        with page_session(_url("v1", claim), headless=headless, slow_mo=slow_mo,
+                          linger_ms=slow_mo * 3) as page:
+
+            # ------------------------------------------------------------ act 1
+            # The recorded selector matches, the click lands, the invoice verifies.
+            _banner(page, "传统 RPA 正常工作",
+                    f"按录制那天记下的 {BRITTLE_SELECTOR} 定位「查验」按钮 —— 稳定命中", OK)
             _pause(page, beat)
-        shot1 = _frame(page)
-        if found_v1:
-            target.click(timeout=3000)
-            page.wait_for_selector("#result", timeout=5000)
-            _banner(page, "传统 RPA 正常工作", "查验完成 —— 它每天都这样跑，从不出错", OK)
+            v1_controls = _buttons(page)
+            target = page.locator(BRITTLE_SELECTOR)
+            found_v1 = target.count() > 0
+            if found_v1:
+                _highlight(target)
+                _pause(page, beat)
+                # This is the recording act 3 will later compare against --
+                # capture it here, from the real v1 control, not hand-typed.
+                try:
+                    store.record(VERIFY_INVOICE.key, fingerprint.capture(target))
+                except Exception:  # pragma: no cover - never let bookkeeping break the demo
+                    pass
+            shot1 = _frame(page)
+            if found_v1:
+                target.click(timeout=3000)
+                page.wait_for_selector("#result", timeout=5000)
+                _banner(page, "传统 RPA 正常工作", "查验完成 —— 它每天都这样跑，从不出错", OK)
+                _pause(page, beat)
+
+            acts.append(Act(
+                title="传统 RPA 正常工作",
+                tone=OK,
+                headline="选择器命中,点击成功",
+                narration="传统 RPA 在刚上线时非常稳定。录制那天,查验平台上有一个 id 为 "
+                          f"{BRITTLE_SELECTOR}、文案是「查验」的按钮,机器人把它记了下来,"
+                          "此后每天照着点,一次都没错过。",
+                context="这就是 RPA 值钱的地方,也是它被大规模部署的原因:流程固定、规则固定、"
+                        "选择器固定,它就能不知疲倦地跑下去,比人快、比人稳、比人便宜。"
+                        "问题不在这一步——问题在这一步太好用了,好到没人给它准备后路。",
+                shots=[Shot(shot1, "录制时记下的「查验」按钮——红框就是 RPA 定位到的元素")]
+                      if shot1 else [],
+            ))
+
+            # ------------------------------------------------------------ act 2
+            # Same browser, same tab. The platform is simply not what it was.
+            page.goto(_url("v2", claim), wait_until="domcontentloaded")
+            _banner(page, "网页系统更新", "查验平台改版上线,页面变成了现在这样", INFO)
+            _pause(page, beat)
+            v2_controls = _buttons(page)
+
+            count = page.locator(BRITTLE_SELECTOR).count()
+            _banner(page, "RPA 获取元素失败",
+                    f"仍然去找 {BRITTLE_SELECTOR} —— 匹配到 {count} 个,流程就此中断", FAIL)
+            _pause(page, beat)
+            shot2 = _frame(page)
             _pause(page, beat)
 
-        acts.append(Act(
-            title="传统 RPA 正常工作",
-            tone=OK,
-            headline="选择器命中,点击成功",
-            narration="传统 RPA 在刚上线时非常稳定。录制那天,查验平台上有一个 id 为 "
-                      f"{BRITTLE_SELECTOR}、文案是「查验」的按钮,机器人把它记了下来,"
-                      "此后每天照着点,一次都没错过。",
-            context="这就是 RPA 值钱的地方,也是它被大规模部署的原因:流程固定、规则固定、"
-                    "选择器固定,它就能不知疲倦地跑下去,比人快、比人稳、比人便宜。"
-                    "问题不在这一步——问题在这一步太好用了,好到没人给它准备后路。",
-            shots=[Shot(shot1, "录制时记下的「查验」按钮——红框就是 RPA 定位到的元素")]
-                  if shot1 else [],
-        ))
+            def _first(controls):
+                return controls[0] if controls else {"label": "-", "id": "-"}
 
-        # ------------------------------------------------------------ act 2
-        # Same browser, same tab. The platform is simply not what it was.
-        page.goto(_url("v2", claim), wait_until="domcontentloaded")
-        _banner(page, "网页系统更新", "查验平台改版上线,页面变成了现在这样", INFO)
-        _pause(page, beat)
-        v2_controls = _inspect_buttons(page)
+            a, b = _first(v1_controls), _first(v2_controls)
+            acts.append(Act(
+                title="网页系统更新，RPA 获取元素失败",
+                tone=FAIL,
+                headline=f"元素未找到:{BRITTLE_SELECTOR}",
+                narration="但是网页系统会更新。查验平台改版上线,新的页面变成了现在这样:"
+                          "主按钮的文案从「查验」变成了「查验发票信息」,id 从 "
+                          f"{BRITTLE_SELECTOR} 变成了 #check-invoice-btn。"
+                          f"RPA 仍然按录制那天记下的元素去找,在新页面上匹配到 {count} 个。"
+                          "获取失败,流程停在这里。",
+                context="难缠的地方在于:字段名没变、表单提交地址没变、页面结构没变,"
+                        "接口层面完全看不出异样,人打开也还是那个页面、那套流程。"
+                        "唯一变的是按钮怎么称呼自己——而这恰恰是写死选择器的机器人唯一认得的东西。"
+                        "它不理解「查验发票信息」和「查验」是同一件事,因为它根本不理解任何事。"
+                        "于是它报错、停在原地、等人来修脚本,而所有走这条流程的单子开始堆积。",
+                shots=[Shot(shot2, "改版后的新页面——原来那个按钮已经不在了")] if shot2 else [],
+                table=[
+                    {"项目": "主按钮文案", "改版前 v1": a.get("label", "-"), "改版后 v2": b.get("label", "-")},
+                    {"项目": "主按钮 id", "改版前 v1": "#" + (a.get("id") or "-"), "改版后 v2": "#" + (b.get("id") or "-")},
+                    {"项目": "表单字段名", "改版前 v1": "invoice_code / invoice_no / amount", "改版后 v2": "完全一致"},
+                    {"项目": "表单提交地址", "改版前 v1": "POST /verify", "改版后 v2": "完全一致"},
+                ],
+                table_caption="只有机器人认的那两行变了,其余一模一样",
+            ))
 
-        count = page.locator(BRITTLE_SELECTOR).count()
-        _banner(page, "RPA 获取元素失败",
-                f"仍然去找 {BRITTLE_SELECTOR} —— 匹配到 {count} 个,流程就此中断", FAIL)
-        _pause(page, beat)
-        shot2 = _frame(page)
-        _pause(page, beat)
-
-        def _first(controls):
-            return controls[0] if controls else {"label": "-", "id": "-"}
-
-        a, b = _first(v1_controls), _first(v2_controls)
-        acts.append(Act(
-            title="网页系统更新，RPA 获取元素失败",
-            tone=FAIL,
-            headline=f"元素未找到:{BRITTLE_SELECTOR}",
-            narration="但是网页系统会更新。查验平台改版上线,新的页面变成了现在这样:"
-                      "主按钮的文案从「查验」变成了「查验发票信息」,id 从 "
-                      f"{BRITTLE_SELECTOR} 变成了 #check-invoice-btn。"
-                      f"RPA 仍然按录制那天记下的元素去找,在新页面上匹配到 {count} 个。"
-                      "获取失败,流程停在这里。",
-            context="难缠的地方在于:字段名没变、表单提交地址没变、页面结构没变,"
-                    "接口层面完全看不出异样,人打开也还是那个页面、那套流程。"
-                    "唯一变的是按钮怎么称呼自己——而这恰恰是写死选择器的机器人唯一认得的东西。"
-                    "它不理解「查验发票信息」和「查验」是同一件事,因为它根本不理解任何事。"
-                    "于是它报错、停在原地、等人来修脚本,而所有走这条流程的单子开始堆积。",
-            shots=[Shot(shot2, "改版后的新页面——原来那个按钮已经不在了")] if shot2 else [],
-            table=[
-                {"项目": "主按钮文案", "改版前 v1": a.get("label", "-"), "改版后 v2": b.get("label", "-")},
-                {"项目": "主按钮 id", "改版前 v1": "#" + (a.get("id") or "-"), "改版后 v2": "#" + (b.get("id") or "-")},
-                {"项目": "表单字段名", "改版前 v1": "invoice_code / invoice_no / amount", "改版后 v2": "完全一致"},
-                {"项目": "表单提交地址", "改版前 v1": "POST /verify", "改版后 v2": "完全一致"},
-            ],
-            table_caption="只有机器人认的那两行变了,其余一模一样",
-        ))
-
-        # ------------------------------------------------------------ act 3
-        # Still the same tab, still the page that just broke the RPA. No reload:
-        # the agent recovers *in place*, which is the whole claim.
-        _banner(page, "Agent 接手",
-                "读取实时 DOM → 枚举可操作控件 → 按意图打分 → 用 role=button 定位", AGENT)
-        _pause(page, beat)
-        candidates = _inspect_buttons(page)
-        best = max(candidates, key=lambda c: c.get("score", 0)) if candidates else {}
-        label = best.get("label", "")
-        status = ""
-        shot_pick = shot_done = None
-        if label:
-            picked = page.get_by_role("button", name=label)
-            _highlight(picked)
-            _pause(page, beat)
-            # The moment it locks on is the point of the whole demo -- keep it.
-            shot_pick = _frame(page)
-            picked.click(timeout=3000)
-            page.wait_for_selector("#result", timeout=5000)
-            status = page.locator("#result").get_attribute("data-status") or ""
+            # ------------------------------------------------------------ act 3
+            # Still the same tab, still the page that just broke the RPA. No
+            # reload: the agent recovers *in place*, which is the whole claim.
             _banner(page, "Agent 接手",
-                    f"已用「{label}」完成查验 —— 状态 {status},全程零人工介入", OK)
+                    "读取实时 DOM → 指纹比对每个候选控件 → 置信度闸门 → 定位控件", AGENT)
             _pause(page, beat)
-            shot_done = _frame(page)
-        else:
-            shot_pick = _frame(page)
 
-        acts.append(Act(
-            title="Agent 接手",
-            tone=AGENT,
-            headline=f"改用「{label}」完成查验 · {status or '—'}",
-            narration="Agent 没有猜,也没有用坐标。它读取实时 DOM,枚举页面上所有可操作控件,"
-                      "按意图关键词打分,选出得分最高的那个,再用 role=button + 可访问名称"
-                      "去定位——这是选择器失效后依然站得住的路径。",
-            context="此时传统 RPA 已经跑不下去了,整条流程停在原地等人来救。Agent 就是在这里"
-                    "接的手——不用等人改脚本,也不必事先知道新按钮叫什么,它当场读页面、"
-                    "当场判断、当场把断掉的流程续上。注意它是在同一个浏览器、同一个标签页、"
-                    "同一张刚刚让 RPA 崩掉的页面上完成的,中间没有重来一次。\n\n"
-                    "它扛得住改版,是因为定位锚在「人怎么读这个按钮」上,而不是「开发当时"
-                    "怎么命名它」上:id 和 class 可以随便改,按钮上写给人看的那几个字不会——"
-                    "一变,用户就不认识这个页面了。",
-            shots=[s for s in (
-                Shot(shot_pick, "Agent 按语义锁定的控件——红框标出的就是它自己找回来的那个")
-                if shot_pick else None,
-                Shot(shot_done, "点击之后：查验一致，断掉的流程接上了")
-                if shot_done else None,
-            ) if s],
-            table=[
-                {
-                    "页面上的控件": c.get("label", ""),
-                    "id": "#" + (c.get("id") or "-"),
-                    "意图得分": c.get("score", 0),
-                    "_hit": c.get("label") == label,
-                }
-                for c in sorted(candidates, key=lambda c: -c.get("score", 0))
-            ],
-            table_caption="Agent 读到的全部候选控件与打分结果",
-        ))
+            shot_pick: Optional[bytes] = None
 
-    return acts
+            def _lock_on(locator) -> None:
+                nonlocal shot_pick
+                _highlight(locator)
+                _pause(page, beat)
+                # The moment it locks on is the point of the whole demo -- keep it.
+                shot_pick = _frame(page)
+
+            result = RecoveryResult(success=False)
+            heal_on_page(page, VERIFY_INVOICE, store, result, before_click=_lock_on)
+            label = result.matched_label
+            status = (result.details or {}).get("result_status", "")
+            decision = result.decision or {}
+
+            shot_done = None
+            if result.success:
+                _banner(page, "Agent 接手",
+                        f"已用「{label}」完成查验 —— 状态 {status},全程零人工介入", OK)
+                _pause(page, beat)
+                shot_done = _frame(page)
+            elif shot_pick is None:
+                shot_pick = _frame(page)
+
+            if result.success:
+                headline = f"改用「{label}」完成查验 · {status or '—'}"
+            else:
+                headline = f"{decision.get('status_label', '置信度不足')} —— 已停手,转人工"
+
+            acts.append(Act(
+                title="Agent 接手",
+                tone=AGENT if result.success else FAIL,
+                headline=headline,
+                narration="Agent 没有猜。它给页面上每个候选控件算一个指纹相似度——提交地址、"
+                          "表单字段、控件类型、按钮文案、id/name、可访问角色、在表单里的位置,"
+                          "加权算出一个 0~1 的分数。只有最高分同时过了两道闸门——置信度 ≥ 0.65,"
+                          "且领先第二名至少 0.15——它才会点下去;点完还会检查结果页的状态码"
+                          "是否真的是「查验一致」,不是点了就算数。",
+                context="此时传统 RPA 已经跑不下去了,整条流程停在原地等人来救。Agent 就是在这里"
+                        "接的手——不用等人改脚本,也不必事先知道新按钮叫什么,它当场读页面、"
+                        "当场判断、当场把断掉的流程续上。注意它是在同一个浏览器、同一个标签页、"
+                        "同一张刚刚让 RPA 崩掉的页面上完成的,中间没有重来一次。\n\n"
+                        "它扛得住改版,是因为比对的是控件「做什么」——提交到哪、带哪些字段、"
+                        "是不是提交按钮——而不是「开发当时怎么称呼它」。id 和 class 可以随便改,"
+                        "表单提交地址和字段这些「活儿」不会变——除非连后端接口都换了,那已经不是"
+                        "一次 UI 改版,是另一个系统了。",
+                shots=[s for s in (
+                    Shot(shot_pick, "Agent 按指纹锁定的控件——红框标出的就是它自己找回来的那个")
+                    if shot_pick else None,
+                    Shot(shot_done, "点击之后：查验一致，断掉的流程接上了")
+                    if shot_done else None,
+                ) if s],
+                table=[
+                    {
+                        "页面上的控件": r.get("label", ""),
+                        "id": "#" + (r.get("id") or "-"),
+                        "指纹相似度": r.get("similarity", 0),
+                        "旧方法关键词分": r.get("legacy_score", 0),
+                        "_hit": r.get("label") == label,
+                    }
+                    for r in sorted(result.candidates, key=lambda r: -r.get("similarity", 0))
+                ],
+                table_caption=(
+                    f"置信度 {decision.get('best_similarity', 0):.2f}，"
+                    f"领先第二名 {decision.get('margin', 0):.2f}"
+                    if decision else "Agent 读到的全部候选控件"
+                ),
+            ))
+
+        return acts
